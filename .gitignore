@@ -3,9 +3,10 @@
 build/
 out/
 
-# Java
+# Java & compiled binaries
 *.class
 *.log
+*.bin
 
 # IDEs and editors
 .idea/
@@ -18,6 +19,3 @@ out/
 # OS
 .DS_Store
 Thumbs.db
-build/tmp/compileJava/previous-compilation-data.bin
-/build
-*.bin

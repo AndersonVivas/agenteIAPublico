@@ -48,7 +48,8 @@ class RepositoryCodeScanServiceTest {
     Files.writeString(repository.resolve("src/main/java/com/example/UserEntity.java"),
         "@Entity class UserEntity {}");
     Files.writeString(repository.resolve("src/main/resources/application.yml"),
-        "spring:\n  datasource:\n    url: jdbc:postgresql://localhost:5432/test");
+        "spring:\n  datasource:\n    url: ${DB_URL:jdbc:postgresql://localhost:5432/test}\n"
+            + "app:\n  timeout: 5000");
     Files.writeString(repository.resolve("src/main/resources/openapi.yml"),
         "info:\n  description: redistribution rules for cash");
 

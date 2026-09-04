@@ -1,6 +1,0 @@
-- Never invent information.
-- Use only the provided evidence and context.
-- Preserve component names, dependencies, and boundaries.
-- Update existing documentation when it is present.
-- Create a new document only when no prior document exists.
-- State missing architectural evidence explicitly.

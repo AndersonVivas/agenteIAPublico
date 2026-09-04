@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="com.pichincha.cdemsaspopenaidocumentation.service.impl.RepositoryCodeScanServiceTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-08-14T15:53:54.055Z" hostname="BUIO016402270UM" time="0.195">
-  <properties/>
-  <testcase name="scanRepositoryShouldTrackAdditionalProgrammingLanguages()" classname="com.pichincha.cdemsaspopenaidocumentation.service.impl.RepositoryCodeScanServiceTest" time="0.059"/>
-  <testcase name="scanRepositoryShouldExtractApiDatabaseAndExceptionIndicators()" classname="com.pichincha.cdemsaspopenaidocumentation.service.impl.RepositoryCodeScanServiceTest" time="0.073"/>
-  <testcase name="scanRepositoryShouldCountSourceArtifacts()" classname="com.pichincha.cdemsaspopenaidocumentation.service.impl.RepositoryCodeScanServiceTest" time="0.062"/>
-  <system-out><![CDATA[]]></system-out>
-  <system-err><![CDATA[]]></system-err>
-</testsuite>

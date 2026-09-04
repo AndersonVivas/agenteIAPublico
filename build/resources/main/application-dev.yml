@@ -1,8 +1,0 @@
-app:
-  git:
-    username: 'avivaspa'
-    personal-access-token: '4ObvDsztrMTDF6HNktfW5WLqMuG6EhQknRlD08AsT37XNJzpXKhcJQQJ99CHACAAAAAihC6zAAASAZDO3bEp'
-
-logging:
-  level:
-    root: INFO
