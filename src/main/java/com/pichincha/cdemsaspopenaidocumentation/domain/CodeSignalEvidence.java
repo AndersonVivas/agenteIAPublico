@@ -3,6 +3,8 @@ package com.pichincha.cdemsaspopenaidocumentation.domain;
 import java.util.List;
 
 public record CodeSignalEvidence(
+    String evidenceId,
+    String scanId,
     String signalType,
     String sourceKind,
     String language,
@@ -10,7 +12,6 @@ public record CodeSignalEvidence(
     String filePath,
     String symbolName,
     String scopeSymbol,
-    String evidenceId,
     String ruleId,
     String matchedRule,
     String matchText,

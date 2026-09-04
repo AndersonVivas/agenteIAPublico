@@ -18,6 +18,7 @@ app:
 
 documentation:
   output-directory: ${CDE_DOCUMENTATION_OUTPUT_DIRECTORY:docs}
+  centralized-output-path: ${CDE_DOCUMENTATION_CENTRALIZED_PATH:}
   overwrite-existing: ${CDE_DOCUMENTATION_OVERWRITE_EXISTING:true}
   evolutionary-mode: ${CDE_DOCUMENTATION_EVOLUTIONARY_MODE:true}
 

@@ -6,15 +6,16 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 
 @Component
 public class FileSystemDocumentPersistenceService implements DocumentPersistenceService {
 
   @Override
-  public Path save(String repositoryPath, String outputDirectory, String documentName,
-      String content, boolean overwriteExisting) {
-    Path directory = Path.of(repositoryPath).resolve(outputDirectory);
+  public Path save(String repositoryPath, String outputDirectory, String centralizedOutputPath,
+      String documentName, String content, boolean overwriteExisting) {
+    Path directory = resolveDirectory(repositoryPath, outputDirectory, centralizedOutputPath);
     Path filePath = directory.resolve(documentName);
     createDirectories(directory);
     if (Files.exists(filePath) && !overwriteExisting) {
@@ -22,6 +23,14 @@ public class FileSystemDocumentPersistenceService implements DocumentPersistence
     }
     writeFile(filePath, content);
     return filePath;
+  }
+
+  private Path resolveDirectory(String repositoryPath, String outputDirectory,
+      String centralizedOutputPath) {
+    if (StringUtils.isNotBlank(centralizedOutputPath)) {
+      return Path.of(centralizedOutputPath);
+    }
+    return Path.of(repositoryPath).resolve(outputDirectory);
   }
 
   private void createDirectories(Path directory) {

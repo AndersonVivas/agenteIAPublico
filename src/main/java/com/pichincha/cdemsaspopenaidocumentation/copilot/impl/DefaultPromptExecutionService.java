@@ -230,7 +230,8 @@ public class DefaultPromptExecutionService implements PromptExecutionService {
     String markdown = markdownDocumentService.createMarkdown(request, generatedContent,
         commitHash, version, Instant.now());
     return documentPersistenceService.save(request.repositoryPath(),
-        documentationProperties.outputDirectory(), documentName, markdown,
+        documentationProperties.outputDirectory(),
+        documentationProperties.centralizedOutputPath(), documentName, markdown,
         documentationProperties.overwriteExisting());
   }
 

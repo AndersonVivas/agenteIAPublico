@@ -12,11 +12,18 @@ import org.springframework.stereotype.Component;
 public class PromptContextFormatter {
 
   public String formatEvidenceSection(PromptContext context) {
-    return String.join("\n\n",
-        formatRepositoryMetadataSection(context.repositoryMetadata()),
-        formatEvidencesSection(context.evidences()),
-        formatCurrentDocumentationSection(context.currentDocumentation()),
-        formatHistoricalIncidentsSection(context.historicalIncidents()));
+    StringJoiner joiner = new StringJoiner("\n\n");
+    joiner.add(formatRepositoryMetadataSection(context.repositoryMetadata()));
+    joiner.add(formatEvidencesSection(context.evidences()));
+    String currentDoc = context.currentDocumentation();
+    if (StringUtils.isNotBlank(currentDoc)) {
+      joiner.add("## Current Documentation\n" + currentDoc.trim());
+    }
+    List<String> incidents = context.historicalIncidents();
+    if (!incidents.isEmpty()) {
+      joiner.add(formatHistoricalIncidentsSection(incidents));
+    }
+    return joiner.toString();
   }
 
   public String formatRagContext(String ragContext) {
@@ -49,33 +56,26 @@ public class PromptContextFormatter {
   }
 
   private String formatEvidence(int index, CodeSignalEvidence evidence) {
-    StringJoiner joiner = new StringJoiner("\n", index + ".\n", "");
-    append(joiner, "signalType", evidence.signalType());
-    append(joiner, "technology", evidence.technology());
-    append(joiner, "filePath", evidence.filePath());
-    append(joiner, "matchText", evidence.matchText());
-    append(joiner, "confidence", Double.toString(evidence.confidence()));
-    append(joiner, "language", evidence.language());
-    append(joiner, "sourceKind", evidence.sourceKind());
-    append(joiner, "ruleId", evidence.ruleId());
-    append(joiner, "matchedRule", evidence.matchedRule());
-    append(joiner, "probableCause", evidence.probableCause());
-    append(joiner, "recoveryAction", evidence.recoveryAction());
-    append(joiner, "tags", String.join(", ", evidence.tags()));
-    return joiner.toString();
+    String location = buildLocation(evidence);
+    String header = index + ". [" + blankSafe(evidence.signalType()) + "|"
+        + blankSafe(evidence.technology()) + "|" + blankSafe(evidence.language()) + "] "
+        + blankSafe(evidence.matchText()) + " → " + location
+        + " | rule:" + blankSafe(evidence.ruleId())
+        + " | conf:" + String.format("%.2f", evidence.confidence());
+    String tags = evidence.tags() == null || evidence.tags().isEmpty()
+        ? "" : " | tags:" + String.join(",", evidence.tags());
+    String detail = "   cause:" + blankSafe(evidence.probableCause())
+        + " | action:" + blankSafe(evidence.recoveryAction()) + tags;
+    return header + "\n" + detail;
   }
 
-  private String formatCurrentDocumentationSection(String currentDocumentation) {
-    return "## Current Documentation\n"
-        + StringUtils.defaultIfBlank(currentDocumentation, "No current documentation provided.");
+  private String buildLocation(CodeSignalEvidence evidence) {
+    String path = blankSafe(evidence.filePath());
+    return evidence.matchLine() > 0 ? path + ":" + evidence.matchLine() : path;
   }
 
   private String formatHistoricalIncidentsSection(List<String> incidents) {
     StringJoiner joiner = new StringJoiner("\n", "## Historical Incidents\n", "");
-    if (incidents.isEmpty()) {
-      joiner.add("- No historical incidents provided.");
-      return joiner.toString();
-    }
     for (int index = 0; index < incidents.size(); index++) {
       joiner.add("- " + (index + 1) + ". " + StringUtils.defaultString(incidents.get(index)));
     }
@@ -87,5 +87,9 @@ public class PromptContextFormatter {
       return;
     }
     joiner.add("- " + label + ": " + value.trim());
+  }
+
+  private String blankSafe(String value) {
+    return StringUtils.defaultIfBlank(value, "");
   }
 }

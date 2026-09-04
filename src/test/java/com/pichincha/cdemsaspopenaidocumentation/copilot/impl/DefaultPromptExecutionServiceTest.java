@@ -34,9 +34,9 @@ class DefaultPromptExecutionServiceTest {
       return new CopilotExecutionOutput("new content", "", PromptExecutionStatus.SUCCESS);
     };
     MarkdownDocumentService markdownService = new TestMarkdownService();
-    DocumentPersistenceService persistence = (repo, outDir, name, content, overwrite) ->
+    DocumentPersistenceService persistence = (repo, outDir, centralizedPath, name, content, overwrite) ->
         Path.of(repo, outDir, name);
-    DocumentationProperties properties = new DocumentationProperties("docs", true, true);
+    DocumentationProperties properties = new DocumentationProperties("docs", "", true, true);
     RepositoryCommitResolver commitResolver = path -> Optional.of("abc123");
 
     DefaultPromptExecutionService service = new DefaultPromptExecutionService(
@@ -125,9 +125,9 @@ class DefaultPromptExecutionServiceTest {
       PromptCommandExecutor commandExecutor, boolean evolutionaryMode) {
     RepositoryDocumentResolver resolver = (repo, outDir, name) -> Optional.empty();
     MarkdownDocumentService markdownService = new TestMarkdownService();
-    DocumentPersistenceService persistence = (repo, outDir, name, content, overwrite) ->
+    DocumentPersistenceService persistence = (repo, outDir, centralizedPath, name, content, overwrite) ->
         Path.of(repo, outDir, name);
-    DocumentationProperties properties = new DocumentationProperties("docs", true,
+    DocumentationProperties properties = new DocumentationProperties("docs", "", true,
         evolutionaryMode);
     RepositoryCommitResolver commitResolver = path -> Optional.of("abc123");
     return new DefaultPromptExecutionService(resolver, commandExecutor, markdownService,
