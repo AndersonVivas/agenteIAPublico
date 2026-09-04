@@ -18,3 +18,6 @@ out/
 # OS
 .DS_Store
 Thumbs.db
+build/tmp/compileJava/previous-compilation-data.bin
+/build
+*.bin
