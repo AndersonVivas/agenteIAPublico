@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.pichincha.cdemsaspopenaidocumentation.prompt.PromptBuilderServiceTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-08-14T15:53:54.046Z" hostname="BUIO016402270UM" time="0.005">
+  <properties/>
+  <testcase name="buildPromptShouldRejectUnsupportedType()" classname="com.pichincha.cdemsaspopenaidocumentation.prompt.PromptBuilderServiceTest" time="0.001"/>
+  <testcase name="contextShouldNormalizeEmptyValues()" classname="com.pichincha.cdemsaspopenaidocumentation.prompt.PromptBuilderServiceTest" time="0.0"/>
+  <testcase name="buildPromptShouldRenderMarkdownTemplateWithContext()" classname="com.pichincha.cdemsaspopenaidocumentation.prompt.PromptBuilderServiceTest" time="0.002"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

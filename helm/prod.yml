@@ -1,0 +1,133 @@
+#Se recomienda confirar los secretos con external secrets helm v5
+
+variables:
+  own:
+    config:
+      - name: "ENVIRONMENT"
+        value: "prod"
+      - name: "CDE_ACTUATOR_ENDPOINTS_INCLUDE"
+        value: "health"
+      - name: "CDE_ACTUATOR_BASE_PATH"
+        value: "/actuator"
+      - name: "CDE_ACTUATOR_HEALTH_PROBES_ENABLED"
+        value: "true"
+      - name: "CDE_ACTUATOR_HEALTH_SHOW_DETAILS"
+        value: "never"
+      - name: "CDE_ACTUATOR_HEALTH_SHOW_COMPONENTS"
+        value: "never"
+      - name: "CDE_ACTUATOR_HEALTH_LIVENESS_INCLUDE"
+        value: "livenessState"
+      - name: "CDE_ACTUATOR_HEALTH_LIVENESS_SHOW_DETAILS"
+        value: "never"
+      - name: "CDE_ACTUATOR_HEALTH_READINESS_INCLUDE"
+        value: "readinessState,diskSpace"
+      - name: "CDE_ACTUATOR_HEALTH_READINESS_SHOW_DETAILS"
+        value: "never"
+      - name: "CDE_ACTUATOR_HEALTH_LIVENESS_ENABLED"
+        value: "true"
+      - name: "CDE_ACTUATOR_HEALTH_READINESS_ENABLED"
+        value: "true"
+      - name: "CDE_LOGGING_ROOT"
+        value: "INFO"
+      - name: "CDE_TRACE_LOGGER_ENABLED"
+        value: "true"
+      - name: "CDE_CUSTOM_LEVEL_ENABLED"
+        value: "true"
+      - name: "CDE_INFO_ENABLED"
+        value: "true"
+      - name: "CDE_DEBUG_ENABLED"
+        value: "false"
+      - name: "CDE_WARN_ENABLED"
+        value: "true"
+      - name: "CDE_ERROR_ENABLED"
+        value: "true"
+      - name: "CDE_GIT_USERNAME"
+        valueFrom:
+          secretKeyRef:
+            name: git-credentials
+            key: username
+            optional: true
+      - name: "CDE_GIT_PAT"
+        valueFrom:
+          secretKeyRef:
+            name: git-credentials
+            key: pat
+            optional: true
+    secret: {}
+
+global:
+  environment: "prod"
+  replicaCount: "1"
+  revisionHistoryLimit: "5"
+  minReadySeconds: "0"
+  version: "v1"
+
+container:
+  project: "prod"
+  registry: "bancopichinchaec.azurecr.io"
+  tag: ""
+  pullPolicy: "IfNotPresent"
+  startupProbe:
+    httpGet:
+      path: /actuator/health/startup
+      port: 8080
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    failureThreshold: 30
+    timeoutSeconds: 5
+  livenessProbe:
+    httpGet:
+      path: /actuator/health/liveness
+      port: 8080
+    initialDelaySeconds: 60
+    periodSeconds: 15
+    failureThreshold: 5
+    timeoutSeconds: 5
+  readinessProbe:
+    httpGet:
+      path: /actuator/health/readiness
+      port: 8080
+    initialDelaySeconds: 45
+    periodSeconds: 10
+    failureThreshold: 3
+    timeoutSeconds: 5
+  resources:
+    requests:
+      cpu: 25m
+      memory: 512Mi
+    limits:
+      memory: 768Mi
+  port:
+    - name: msa-port
+      servicePort: 80
+      containerPort: 8080
+      protocol: TCP
+  volumeMounts:
+    - name: init-sh
+      mountPath: /opt/build/init.sh
+      subPath: init.sh
+
+hpa:
+  minReplicas: 2
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 30
+
+volumes:
+  - name: init-sh
+    configMap:
+      name: configmap-${NAMESPACE}
+      items:
+        - key: init.sh
+          path: init.sh

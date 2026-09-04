@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultPromptPreviewService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cde-msa-sp-openai-documentation</a> &gt; <a href="index.source.html" class="el_package">com.pichincha.cdemsaspopenaidocumentation.prompt.impl</a> &gt; <span class="el_source">DefaultPromptPreviewService.java</span></div><h1>DefaultPromptPreviewService.java</h1><pre class="source lang-java linenums">package com.pichincha.cdemsaspopenaidocumentation.prompt.impl;
+
+import com.pichincha.cdemsaspopenaidocumentation.domain.CodeScanSummary;
+import com.pichincha.cdemsaspopenaidocumentation.domain.RepositoryCloneRequest;
+import com.pichincha.cdemsaspopenaidocumentation.domain.RepositoryCloneResponse;
+import com.pichincha.cdemsaspopenaidocumentation.prompt.PromptBuilderService;
+import com.pichincha.cdemsaspopenaidocumentation.prompt.PromptPreviewService;
+import com.pichincha.cdemsaspopenaidocumentation.prompt.domain.PromptContext;
+import com.pichincha.cdemsaspopenaidocumentation.prompt.domain.PromptType;
+import com.pichincha.cdemsaspopenaidocumentation.prompt.domain.RepositoryMetadata;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.stereotype.Service;
+
+@Service
+public class DefaultPromptPreviewService implements PromptPreviewService {
+
+  private final PromptBuilderService promptBuilderService;
+
+<span class="fc" id="L23">  public DefaultPromptPreviewService(PromptBuilderService promptBuilderService) {</span>
+<span class="fc" id="L24">    this.promptBuilderService = promptBuilderService;</span>
+<span class="fc" id="L25">  }</span>
+
+  @Override
+  public String buildPreview(RepositoryCloneRequest request, RepositoryCloneResponse response,
+      PromptType promptType) {
+<span class="nc" id="L30">    return buildPreview(request, response.codeScanSummary(), response.localPath(), promptType);</span>
+  }
+
+  @Override
+  public String buildPreview(RepositoryCloneRequest request, CodeScanSummary codeScanSummary,
+      String localPath, PromptType promptType) {
+<span class="pc bpc" id="L36" title="1 of 2 branches missed.">    PromptType resolvedType = promptType == null ? PromptType.ERROR_MANUAL : promptType;</span>
+<span class="fc" id="L37">    PromptContext context = new PromptContext(repositoryMetadata(request, localPath,</span>
+<span class="fc" id="L38">        codeScanSummary), evidences(codeScanSummary), ragContext(codeScanSummary),</span>
+<span class="fc" id="L39">        currentDocumentation(codeScanSummary), List.of());</span>
+<span class="fc" id="L40">    return promptBuilderService.buildPrompt(resolvedType, context);</span>
+  }
+
+  private RepositoryMetadata repositoryMetadata(RepositoryCloneRequest request, String localPath,
+      CodeScanSummary codeScanSummary) {
+<span class="pc bpc" id="L45" title="2 of 4 branches missed.">    String technology = codeScanSummary == null || codeScanSummary.evidences().isEmpty()</span>
+<span class="pc" id="L46">        ? &quot;&quot; : StringUtils.defaultString(codeScanSummary.evidences().get(0).technology());</span>
+<span class="fc" id="L47">    return new RepositoryMetadata(request.repositoryName(), localPath, &quot;&quot;, technology,</span>
+<span class="fc" id="L48">        Map.of(&quot;organization&quot;, request.organization(), &quot;projectName&quot;, request.projectName()));</span>
+  }
+
+  private List&lt;com.pichincha.cdemsaspopenaidocumentation.domain.CodeSignalEvidence&gt; evidences(
+      CodeScanSummary codeScanSummary) {
+<span class="pc bpc" id="L53" title="1 of 2 branches missed.">    return codeScanSummary == null ? List.of() : codeScanSummary.evidences();</span>
+  }
+
+  private String ragContext(CodeScanSummary codeScanSummary) {
+<span class="pc bpc" id="L57" title="1 of 2 branches missed.">    if (codeScanSummary == null) {</span>
+<span class="nc" id="L58">      return &quot;No scan summary available.&quot;;</span>
+    }
+<span class="fc" id="L60">    return &quot;Scan summary: totalFiles=&quot; + codeScanSummary.totalFiles()</span>
+<span class="fc" id="L61">        + &quot;, directories=&quot; + codeScanSummary.directories()</span>
+<span class="fc" id="L62">        + &quot;, languages=&quot; + summarizeCounters(codeScanSummary.filesByLanguage())</span>
+<span class="fc" id="L63">        + &quot;, extensions=&quot; + summarizeCounters(codeScanSummary.filesByExtension())</span>
+<span class="fc" id="L64">        + &quot;, signalsExtracted=&quot; + codeScanSummary.metadata().signalsExtracted()</span>
+<span class="fc" id="L65">        + &quot;, analyzerVersion=&quot; + codeScanSummary.metadata().analyzerVersion()</span>
+<span class="fc" id="L66">        + &quot;, promptVersion=&quot; + codeScanSummary.metadata().promptVersion();</span>
+  }
+
+  private String summarizeCounters(Map&lt;String, Long&gt; counters) {
+<span class="fc" id="L70">    return counters.entrySet().stream()</span>
+<span class="fc" id="L71">        .sorted(Map.Entry.&lt;String, Long&gt;comparingByValue(Comparator.reverseOrder())</span>
+<span class="fc" id="L72">            .thenComparing(Map.Entry.comparingByKey()))</span>
+<span class="fc" id="L73">        .limit(8)</span>
+<span class="fc" id="L74">        .map(entry -&gt; entry.getKey() + &quot;:&quot; + entry.getValue())</span>
+<span class="fc" id="L75">        .collect(Collectors.joining(&quot;, &quot;));</span>
+  }
+
+  private String currentDocumentation(CodeScanSummary codeScanSummary) {
+<span class="pc bpc" id="L79" title="1 of 2 branches missed.">    return codeScanSummary == null ? &quot;&quot; : &quot;&quot;;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GitRepositoryCloner.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cde-msa-sp-openai-documentation</a> &gt; <a href="index.source.html" class="el_package">com.pichincha.cdemsaspopenaidocumentation.helper</a> &gt; <span class="el_source">GitRepositoryCloner.java</span></div><h1>GitRepositoryCloner.java</h1><pre class="source lang-java linenums">package com.pichincha.cdemsaspopenaidocumentation.helper;
+
+import com.pichincha.cdemsaspopenaidocumentation.config.GitCloneProperties;
+import com.pichincha.cdemsaspopenaidocumentation.domain.RepositoryCloneRequest;
+import com.pichincha.cdemsaspopenaidocumentation.domain.RepositoryCloneResult;
+import com.pichincha.cdemsaspopenaidocumentation.exception.RepositoryCloneException;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Comparator;
+import java.util.List;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.stereotype.Component;
+
+@Component
+public class GitRepositoryCloner {
+
+  private final GitCloneProperties properties;
+  private final GitCommandExecutor commandExecutor;
+
+  public GitRepositoryCloner(GitCloneProperties properties,
+<span class="fc" id="L22">      GitCommandExecutor commandExecutor) {</span>
+<span class="fc" id="L23">    this.properties = properties;</span>
+<span class="fc" id="L24">    this.commandExecutor = commandExecutor;</span>
+<span class="fc" id="L25">  }</span>
+
+  public RepositoryCloneResult cloneRepository(RepositoryCloneRequest request) {
+<span class="fc" id="L28">    validateBaseUrl();</span>
+<span class="fc" id="L29">    Path targetDirectory = properties.repositoryDirectory(request.organization(),</span>
+<span class="fc" id="L30">        request.projectName(), request.repositoryName());</span>
+<span class="fc" id="L31">    prepareTargetDirectory(targetDirectory);</span>
+<span class="fc" id="L32">    executeClone(request, targetDirectory);</span>
+<span class="fc" id="L33">    return RepositoryCloneResult.cloned(request.repositoryName(), request.pullRequestId(),</span>
+        targetDirectory);
+  }
+
+  private void executeClone(RepositoryCloneRequest request, Path targetDirectory) {
+<span class="fc" id="L38">    List&lt;String&gt; command = List.of(&quot;git&quot;, &quot;clone&quot;,</span>
+<span class="fc" id="L39">        properties.repositoryUrl(request.organization(), request.projectName(),</span>
+<span class="fc" id="L40">            request.repositoryName()),</span>
+<span class="fc" id="L41">        targetDirectory.toString());</span>
+<span class="fc" id="L42">    commandExecutor.execute(command, properties.cloneDirectory());</span>
+<span class="fc" id="L43">  }</span>
+
+  private void prepareTargetDirectory(Path targetDirectory) {
+    try {
+<span class="pc bpc" id="L47" title="3 of 4 branches missed.">      if (Files.exists(targetDirectory) &amp;&amp; !properties.overwriteExisting()) {</span>
+<span class="nc" id="L48">        throw new RepositoryCloneException(&quot;Target directory already exists: &quot; + targetDirectory);</span>
+      }
+<span class="fc" id="L50">      deleteIfNeeded(targetDirectory);</span>
+<span class="fc" id="L51">      Files.createDirectories(targetDirectory);</span>
+<span class="nc" id="L52">    } catch (IOException exception) {</span>
+<span class="nc" id="L53">      throw new RepositoryCloneException(&quot;Unable to prepare repository directory.&quot;, exception);</span>
+<span class="fc" id="L54">    }</span>
+<span class="fc" id="L55">  }</span>
+
+  private void deleteIfNeeded(Path targetDirectory) throws IOException {
+<span class="pc bpc" id="L58" title="3 of 4 branches missed.">    if (!Files.exists(targetDirectory) || !properties.overwriteExisting()) {</span>
+<span class="fc" id="L59">      return;</span>
+    }
+<span class="nc" id="L61">    Files.walk(targetDirectory)</span>
+<span class="nc" id="L62">        .sorted(Comparator.reverseOrder())</span>
+<span class="nc" id="L63">        .forEach(GitRepositoryCloner::deleteSilently);</span>
+<span class="nc" id="L64">  }</span>
+
+  private static void deleteSilently(Path path) {
+    try {
+<span class="nc" id="L68">      Files.deleteIfExists(path);</span>
+<span class="nc" id="L69">    } catch (IOException exception) {</span>
+<span class="nc" id="L70">      throw new RepositoryCloneException(&quot;Unable to clean repository directory.&quot;, exception);</span>
+<span class="nc" id="L71">    }</span>
+<span class="nc" id="L72">  }</span>
+
+  private void validateBaseUrl() {
+<span class="fc bfc" id="L75" title="All 2 branches covered.">    if (StringUtils.isBlank(properties.baseUrl())) {</span>
+<span class="fc" id="L76">      throw new RepositoryCloneException(&quot;app.git.base-url must be configured.&quot;);</span>
+    }
+<span class="fc" id="L78">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

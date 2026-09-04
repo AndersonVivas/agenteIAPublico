@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultPromptBuilderService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cde-msa-sp-openai-documentation</a> &gt; <a href="index.source.html" class="el_package">com.pichincha.cdemsaspopenaidocumentation.prompt.impl</a> &gt; <span class="el_source">DefaultPromptBuilderService.java</span></div><h1>DefaultPromptBuilderService.java</h1><pre class="source lang-java linenums">package com.pichincha.cdemsaspopenaidocumentation.prompt.impl;
+
+import com.pichincha.cdemsaspopenaidocumentation.prompt.PromptBuilderService;
+import com.pichincha.cdemsaspopenaidocumentation.prompt.PromptTemplateStrategy;
+import com.pichincha.cdemsaspopenaidocumentation.prompt.config.PromptBuilderProperties;
+import com.pichincha.cdemsaspopenaidocumentation.prompt.domain.PromptContext;
+import com.pichincha.cdemsaspopenaidocumentation.prompt.domain.PromptTemplateDefinition;
+import com.pichincha.cdemsaspopenaidocumentation.prompt.domain.PromptType;
+import com.pichincha.cdemsaspopenaidocumentation.prompt.support.PromptContextFormatter;
+import com.pichincha.cdemsaspopenaidocumentation.prompt.support.PromptTemplateLoader;
+import com.pichincha.cdemsaspopenaidocumentation.prompt.support.PromptTemplateRenderer;
+import java.util.EnumMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import org.springframework.stereotype.Service;
+
+@Service
+public class DefaultPromptBuilderService implements PromptBuilderService {
+
+  private final Map&lt;PromptType, PromptTemplateStrategy&gt; strategies;
+  private final PromptBuilderProperties properties;
+  private final PromptTemplateLoader loader;
+  private final PromptTemplateRenderer renderer;
+  private final PromptContextFormatter contextFormatter;
+
+  public DefaultPromptBuilderService(List&lt;PromptTemplateStrategy&gt; strategies,
+      PromptBuilderProperties properties, PromptTemplateLoader loader,
+<span class="fc" id="L29">      PromptTemplateRenderer renderer, PromptContextFormatter contextFormatter) {</span>
+<span class="fc" id="L30">    this.strategies = new EnumMap&lt;&gt;(PromptType.class);</span>
+<span class="fc bfc" id="L31" title="All 2 branches covered.">    for (PromptTemplateStrategy strategy : strategies) {</span>
+<span class="fc" id="L32">      this.strategies.put(strategy.supportedType(), strategy);</span>
+<span class="fc" id="L33">    }</span>
+<span class="fc" id="L34">    this.properties = properties;</span>
+<span class="fc" id="L35">    this.loader = loader;</span>
+<span class="fc" id="L36">    this.renderer = renderer;</span>
+<span class="fc" id="L37">    this.contextFormatter = contextFormatter;</span>
+<span class="fc" id="L38">  }</span>
+
+  @Override
+  public String buildPrompt(PromptType promptType, PromptContext context) {
+<span class="fc" id="L42">    PromptTemplateDefinition definition = resolveDefinition(promptType);</span>
+<span class="fc" id="L43">    String template = loader.load(resolveResource(properties.templatesPath(),</span>
+<span class="fc" id="L44">        definition.templateResource()));</span>
+<span class="fc" id="L45">    String rules = loader.load(resolveResource(properties.rulesPath(),</span>
+<span class="fc" id="L46">        definition.rulesResource()));</span>
+<span class="fc" id="L47">    return renderer.render(template, templateValues(context, rules, definition.outputFormat()));</span>
+  }
+
+  private PromptTemplateDefinition resolveDefinition(PromptType promptType) {
+<span class="fc bfc" id="L51" title="All 2 branches covered.">    if (promptType == null) {</span>
+<span class="fc" id="L52">      throw new IllegalArgumentException(&quot;Unsupported prompt type: null&quot;);</span>
+    }
+<span class="fc" id="L54">    PromptTemplateStrategy strategy = strategies.get(promptType);</span>
+<span class="pc bpc" id="L55" title="1 of 2 branches missed.">    if (strategy == null) {</span>
+<span class="nc" id="L56">      throw new IllegalArgumentException(&quot;Unsupported prompt type: &quot; + promptType);</span>
+    }
+<span class="fc" id="L58">    return strategy.definition();</span>
+  }
+
+  private Map&lt;String, String&gt; templateValues(PromptContext context, String rules,
+      String outputFormat) {
+<span class="fc" id="L63">    Map&lt;String, String&gt; values = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L64">    values.put(&quot;evidence&quot;, contextFormatter.formatEvidenceSection(context));</span>
+<span class="fc" id="L65">    values.put(&quot;rag_context&quot;, contextFormatter.formatRagContext(context.ragContext()));</span>
+<span class="fc" id="L66">    values.put(&quot;rules&quot;, rules);</span>
+<span class="fc" id="L67">    values.put(&quot;output_format&quot;, outputFormat);</span>
+<span class="fc" id="L68">    return values;</span>
+  }
+
+  private String resolveResource(String basePath, String resourceName) {
+<span class="fc" id="L72">    return basePath + &quot;/&quot; + resourceName;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

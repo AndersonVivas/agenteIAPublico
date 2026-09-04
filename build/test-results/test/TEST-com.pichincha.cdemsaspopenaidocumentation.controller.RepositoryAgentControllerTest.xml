@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.pichincha.cdemsaspopenaidocumentation.controller.RepositoryAgentControllerTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-08-14T15:53:54.012Z" hostname="BUIO016402270UM" time="0.011">
+  <properties/>
+  <testcase name="cloneRepositoryShouldReturnPromptPreviewWhenRequested()" classname="com.pichincha.cdemsaspopenaidocumentation.controller.RepositoryAgentControllerTest" time="0.006"/>
+  <testcase name="cloneRepositoryShouldGenerateDocumentationByDefault()" classname="com.pichincha.cdemsaspopenaidocumentation.controller.RepositoryAgentControllerTest" time="0.004"/>
+  <testcase name="cloneRepositoryShouldReturnResponse()" classname="com.pichincha.cdemsaspopenaidocumentation.controller.RepositoryAgentControllerTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

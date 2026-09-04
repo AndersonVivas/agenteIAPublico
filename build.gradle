@@ -1,0 +1,124 @@
+plugins {
+    id 'jacoco'
+    id 'java'
+    id 'org.springframework.boot' version '4.0.6'
+    id 'io.spring.dependency-management' version '1.1.7'
+    id 'com.pichincha.frm-plugin-peer-review-gradle' version '1.1.2'
+} 
+
+def packageName = "com.pichincha.cdemsaspopenaidocumentation"
+
+springBoot {
+    mainClass = "${packageName}.OptimusApplication"
+}
+
+group = "com.pichincha.cdemsaspopenaidocumentation"
+version = "1.0.0"
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_25
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        url "https://pkgs.dev.azure.com/BancoPichinchaEC/0f20bf47-c965-46fe-8bd4-91df57fbb2e7/_packaging/Framework/maven/v1"
+        name "BancoPichinchaEC"
+        credentials {
+            username System.getenv("ARTIFACT_USERNAME")
+            password System.getenv("ARTIFACT_TOKEN")
+        }
+    }    
+} 
+
+ext {
+    set('springCloudVersion', '2025.1.1')
+    set('springAiVersion', '1.0.3')
+    set('libTraceLoggerVersion', '1.0.0')
+    set('tomcatVersion', '11.0.22')
+}
+
+dependencies {
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+    annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
+
+    implementation 'io.temporal:temporal-sdk:1.27.1'
+
+    // Security overrides for transitive dependencies
+    implementation 'io.grpc:grpc-netty-shaded:1.75.0'
+    implementation 'com.google.protobuf:protobuf-java:3.25.5'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.21.5'
+
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    //Trace loger library
+    implementation "com.pichincha.common:lib-trace-logger-sb4:${libTraceLoggerVersion}"
+    implementation 'org.springframework.boot:spring-boot-starter-aspectj'
+
+    implementation("org.apache.commons:commons-lang3:3.20.0")
+
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    implementation "org.apache.tomcat.embed:tomcat-embed-core:${tomcatVersion}"
+    implementation "org.apache.tomcat.embed:tomcat-embed-websocket:${tomcatVersion}"
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-actuator-test'
+    testImplementation 'org.mockito:mockito-junit-jupiter:5.14.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+        mavenBom "org.springframework.ai:spring-ai-bom:${springAiVersion}"
+    }
+}
+
+
+tasks.register('optimusCreateUnitTest', JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = "com.pichincha.cdemsaspopenaidocumentation.core.ProcessMain"
+}
+
+compileJava {
+    options.compilerArgs += [
+            "-Amapstruct.suppressGeneratorTimestamp=true",
+            "-Amapstruct.suppressGeneratorVersionInfoComment=true",
+            "-Amapstruct.verbose=true",
+            "-Amapstruct.defaultComponentModel=spring"
+    ]
+}
+
+sourceSets.main.java.srcDirs = ["src/main/java"]
+
+springBoot {
+    buildInfo() 
+}
+
+test {
+    useJUnitPlatform()
+    finalizedBy jacocoTestReport
+}
+
+jacocoTestReport {
+    dependsOn test
+    reports {
+        xml.required = true
+        xml.outputLocation = file("$buildDir/jacoco/test.xml")
+        html.required = true
+        html.outputLocation = file("$buildDir/jacoco/index.html")
+        csv.required = true
+    }
+}

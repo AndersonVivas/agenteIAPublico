@@ -1,0 +1,46 @@
+name: $(SourceBranchName)-$(Date:yyyyMMdd)$(Rev:.r)
+
+parameters:
+  - name: BASE_IMAGE_TECH
+    type: string
+    default: "GOLDEN-IMAGE-OPENJDK25-PREVIEW"
+
+trigger:
+  branches:
+    include:
+    - feature/*
+    - release/*
+    - hotfix/*
+    - bugfix/*
+    - develop
+    - master
+  paths:
+    exclude:
+      - catalog-info.yaml
+
+variables:
+  - name: KUBERNETES_NAMESPACE
+    value: cde-msa-sp-openai-docs
+  - group: aks-cross-cde-msa-sp-openai-docs
+  - ${{ if or( startsWith(variables['Build.SourceBranch'], 'refs/heads/feature/'), startsWith(variables['Build.SourceBranch'], 'refs/heads/bugfix/')) }}:
+      - group: aks-dev-cde-msa-sp-openai-docs
+      - name: KUBERNETES_CLUSTER_NAME
+        value: temp-dev-cluster
+  - ${{ if or( eq(variables['Build.SourceBranch'], 'refs/heads/develop'),startsWith(variables['Build.SourceBranch'], 'refs/heads/hotfix/'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/')) }}:
+      - group: aks-test-cde-msa-sp-openai-docs
+      - name: KUBERNETES_CLUSTER_NAME
+        value: temp-test-cluster
+  - ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/master') }}:
+      - group: aks-prod-cde-msa-sp-openai-docs
+      - name: KUBERNETES_CLUSTER_NAME
+        value: temp-prod-cluster
+
+resources:
+  repositories:
+    - repository: JavaTemplate
+      type: git
+      name: BP-DevOps-Infrastructure/common-pipeline-template-aks
+      ref: refs/heads/master
+
+extends:
+  template: java/springboot/gradle/initVersioning.yml@JavaTemplate

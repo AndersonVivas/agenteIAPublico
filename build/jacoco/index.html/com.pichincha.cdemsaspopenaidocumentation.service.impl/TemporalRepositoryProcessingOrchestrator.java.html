@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TemporalRepositoryProcessingOrchestrator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cde-msa-sp-openai-documentation</a> &gt; <a href="index.source.html" class="el_package">com.pichincha.cdemsaspopenaidocumentation.service.impl</a> &gt; <span class="el_source">TemporalRepositoryProcessingOrchestrator.java</span></div><h1>TemporalRepositoryProcessingOrchestrator.java</h1><pre class="source lang-java linenums">package com.pichincha.cdemsaspopenaidocumentation.service.impl;
+
+import com.pichincha.cdemsaspopenaidocumentation.config.TemporalProperties;
+import com.pichincha.cdemsaspopenaidocumentation.domain.RepositoryCloneRequest;
+import com.pichincha.cdemsaspopenaidocumentation.domain.RepositoryCloneResponse;
+import com.pichincha.cdemsaspopenaidocumentation.service.RepositoryProcessingOrchestrator;
+import com.pichincha.cdemsaspopenaidocumentation.workflow.RepositoryProcessingWorkflow;
+import io.temporal.client.WorkflowClient;
+import io.temporal.client.WorkflowOptions;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.stereotype.Component;
+
+@Component
+@ConditionalOnProperty(prefix = &quot;app.temporal&quot;, name = &quot;enabled&quot;, havingValue = &quot;true&quot;)
+public class TemporalRepositoryProcessingOrchestrator implements RepositoryProcessingOrchestrator {
+
+  private final WorkflowClient workflowClient;
+  private final TemporalProperties properties;
+
+  public TemporalRepositoryProcessingOrchestrator(WorkflowClient workflowClient,
+<span class="nc" id="L21">      TemporalProperties properties) {</span>
+<span class="nc" id="L22">    this.workflowClient = workflowClient;</span>
+<span class="nc" id="L23">    this.properties = properties;</span>
+<span class="nc" id="L24">  }</span>
+
+  @Override
+  public RepositoryCloneResponse process(RepositoryCloneRequest request) {
+<span class="nc" id="L28">    RepositoryProcessingWorkflow workflow = workflowClient.newWorkflowStub(</span>
+<span class="nc" id="L29">        RepositoryProcessingWorkflow.class, workflowOptions(request));</span>
+<span class="nc" id="L30">    return workflow.process(request);</span>
+  }
+
+  private WorkflowOptions workflowOptions(RepositoryCloneRequest request) {
+<span class="nc" id="L34">    return WorkflowOptions.newBuilder()</span>
+<span class="nc" id="L35">        .setTaskQueue(properties.taskQueue())</span>
+<span class="nc" id="L36">        .setWorkflowId(buildWorkflowId(request))</span>
+<span class="nc" id="L37">        .setWorkflowRunTimeout(properties.workflowTimeout())</span>
+<span class="nc" id="L38">        .build();</span>
+  }
+
+  private String buildWorkflowId(RepositoryCloneRequest request) {
+<span class="nc" id="L42">    return properties.workflowIdPrefix() + &quot;-&quot; + request.pullRequestId() + &quot;-&quot;</span>
+<span class="nc" id="L43">        + request.repositoryName().replaceAll(&quot;[^a-zA-Z0-9._-]&quot;, &quot;-&quot;);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

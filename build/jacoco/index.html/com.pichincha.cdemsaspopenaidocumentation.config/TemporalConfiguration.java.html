@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TemporalConfiguration.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cde-msa-sp-openai-documentation</a> &gt; <a href="index.source.html" class="el_package">com.pichincha.cdemsaspopenaidocumentation.config</a> &gt; <span class="el_source">TemporalConfiguration.java</span></div><h1>TemporalConfiguration.java</h1><pre class="source lang-java linenums">package com.pichincha.cdemsaspopenaidocumentation.config;
+
+import com.pichincha.cdemsaspopenaidocumentation.activity.CloneRepositoryActivity;
+import com.pichincha.cdemsaspopenaidocumentation.workflow.impl.RepositoryProcessingWorkflowImpl;
+import io.temporal.client.WorkflowClient;
+import io.temporal.client.WorkflowClientOptions;
+import io.temporal.serviceclient.WorkflowServiceStubs;
+import io.temporal.serviceclient.WorkflowServiceStubsOptions;
+import io.temporal.worker.Worker;
+import io.temporal.worker.WorkerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+@ConditionalOnProperty(prefix = &quot;app.temporal&quot;, name = &quot;enabled&quot;, havingValue = &quot;true&quot;)
+<span class="nc" id="L17">public class TemporalConfiguration {</span>
+
+  @Bean
+  WorkflowServiceStubs workflowServiceStubs(TemporalProperties properties) {
+<span class="nc" id="L21">    WorkflowServiceStubsOptions options = WorkflowServiceStubsOptions.newBuilder()</span>
+<span class="nc" id="L22">        .setTarget(properties.serverTarget())</span>
+<span class="nc" id="L23">        .build();</span>
+<span class="nc" id="L24">    return WorkflowServiceStubs.newServiceStubs(options);</span>
+  }
+
+  @Bean
+  WorkflowClient workflowClient(WorkflowServiceStubs workflowServiceStubs,
+      TemporalProperties properties) {
+<span class="nc" id="L30">    WorkflowClientOptions options = WorkflowClientOptions.newBuilder()</span>
+<span class="nc" id="L31">        .setNamespace(properties.namespace())</span>
+<span class="nc" id="L32">        .build();</span>
+<span class="nc" id="L33">    return WorkflowClient.newInstance(workflowServiceStubs, options);</span>
+  }
+
+  @Bean(destroyMethod = &quot;shutdown&quot;)
+  WorkerFactory workerFactory(WorkflowClient workflowClient,
+      CloneRepositoryActivity cloneRepositoryActivity,
+      TemporalProperties properties) {
+<span class="nc" id="L40">    WorkerFactory workerFactory = WorkerFactory.newInstance(workflowClient);</span>
+<span class="nc" id="L41">    Worker worker = workerFactory.newWorker(properties.taskQueue());</span>
+<span class="nc" id="L42">    worker.registerActivitiesImplementations(cloneRepositoryActivity);</span>
+<span class="nc" id="L43">    worker.registerWorkflowImplementationTypes(RepositoryProcessingWorkflowImpl.class);</span>
+<span class="nc" id="L44">    workerFactory.start();</span>
+<span class="nc" id="L45">    return workerFactory;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

@@ -1,0 +1,6 @@
+- Never invent information.
+- Use only the provided evidence and context.
+- Preserve API paths, operation names, and version markers.
+- Update existing documentation when it is present.
+- Create a new document only when no prior document exists.
+- State missing endpoint details explicitly.

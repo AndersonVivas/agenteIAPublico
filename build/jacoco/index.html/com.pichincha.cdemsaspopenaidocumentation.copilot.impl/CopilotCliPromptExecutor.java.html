@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CopilotCliPromptExecutor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">cde-msa-sp-openai-documentation</a> &gt; <a href="index.source.html" class="el_package">com.pichincha.cdemsaspopenaidocumentation.copilot.impl</a> &gt; <span class="el_source">CopilotCliPromptExecutor.java</span></div><h1>CopilotCliPromptExecutor.java</h1><pre class="source lang-java linenums">package com.pichincha.cdemsaspopenaidocumentation.copilot.impl;
+
+import com.pichincha.cdemsaspopenaidocumentation.copilot.PromptCommandExecutor;
+import com.pichincha.cdemsaspopenaidocumentation.copilot.config.CopilotCliProperties;
+import com.pichincha.cdemsaspopenaidocumentation.copilot.domain.CopilotExecutionOutput;
+import com.pichincha.cdemsaspopenaidocumentation.copilot.domain.PromptExecutionStatus;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.stereotype.Component;
+
+@Component
+public class CopilotCliPromptExecutor implements PromptCommandExecutor {
+
+  private final CopilotCliProperties properties;
+
+<span class="fc" id="L28">  public CopilotCliPromptExecutor(CopilotCliProperties properties) {</span>
+<span class="fc" id="L29">    this.properties = properties;</span>
+<span class="fc" id="L30">  }</span>
+
+  @Override
+  public CopilotExecutionOutput execute(String prompt, Path workingDirectory) {
+    try {
+<span class="nc" id="L35">      Process process = startProcess(prompt, workingDirectory);</span>
+      try (ExecutorService executor = java.util.concurrent.Executors
+<span class="nc" id="L37">          .newVirtualThreadPerTaskExecutor()) {</span>
+<span class="nc" id="L38">        Future&lt;String&gt; stdout = executor.submit(() -&gt; read(process.getInputStream()));</span>
+<span class="nc" id="L39">        Future&lt;String&gt; stderr = executor.submit(() -&gt; read(process.getErrorStream()));</span>
+<span class="nc" id="L40">        boolean finished = process.waitFor(properties.timeoutSeconds(), TimeUnit.SECONDS);</span>
+<span class="nc bnc" id="L41" title="All 2 branches missed.">        if (!finished) {</span>
+<span class="nc" id="L42">          return timeoutResult(process, stdout, stderr);</span>
+        }
+<span class="nc" id="L44">        return completedResult(process.exitValue(), stdout.get(), stderr.get());</span>
+<span class="nc bnc" id="L45" title="All 2 branches missed.">      }</span>
+<span class="nc" id="L46">    } catch (InterruptedException exception) {</span>
+<span class="nc" id="L47">      Thread.currentThread().interrupt();</span>
+<span class="nc" id="L48">      return new CopilotExecutionOutput(&quot;&quot;, &quot;Copilot CLI execution interrupted.&quot;,</span>
+          PromptExecutionStatus.FAILED);
+<span class="nc" id="L50">    } catch (ExecutionException exception) {</span>
+<span class="nc" id="L51">      return new CopilotExecutionOutput(&quot;&quot;, &quot;Failed to capture Copilot CLI output: &quot;</span>
+<span class="nc" id="L52">          + exception.getMessage(), PromptExecutionStatus.FAILED);</span>
+<span class="nc" id="L53">    } catch (IllegalStateException exception) {</span>
+<span class="nc" id="L54">      return new CopilotExecutionOutput(&quot;&quot;, exception.getMessage(),</span>
+          PromptExecutionStatus.FAILED);
+    }
+  }
+
+  private Process startProcess(String prompt, Path workingDirectory) {
+<span class="nc" id="L60">    StringBuilder failures = new StringBuilder();</span>
+<span class="nc bnc" id="L61" title="All 2 branches missed.">    for (String candidate : commandCandidates()) {</span>
+<span class="nc" id="L62">      List&lt;String&gt; command = buildPromptCommand(candidate, prompt);</span>
+<span class="nc" id="L63">      ProcessBuilder builder = new ProcessBuilder(command);</span>
+<span class="nc" id="L64">      builder.directory(workingDirectory.toFile());</span>
+      try {
+<span class="nc" id="L66">        return builder.start();</span>
+<span class="nc" id="L67">      } catch (IOException exception) {</span>
+<span class="nc" id="L68">        appendFailure(failures, command,</span>
+<span class="nc" id="L69">            StringUtils.defaultIfBlank(exception.getMessage(), &quot;unknown&quot;));</span>
+      }
+<span class="nc" id="L71">    }</span>
+<span class="nc" id="L72">    throw new IllegalStateException(&quot;Unable to execute GitHub Copilot CLI. &quot;</span>
+        + failures);
+  }
+
+  private List&lt;String&gt; buildPromptCommand(String commandName, String prompt) {
+<span class="fc" id="L77">    List&lt;String&gt; command = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L78">    command.add(commandName);</span>
+<span class="fc" id="L79">    command.addAll(properties.arguments());</span>
+<span class="fc" id="L80">    command.add(prompt);</span>
+<span class="fc" id="L81">    return command;</span>
+  }
+
+  private List&lt;String&gt; commandCandidates() {
+<span class="nc" id="L85">    Set&lt;String&gt; candidates = new LinkedHashSet&lt;&gt;();</span>
+<span class="nc" id="L86">    candidates.add(properties.command());</span>
+<span class="nc" id="L87">    candidates.add(&quot;gh&quot;);</span>
+<span class="nc" id="L88">    candidates.add(&quot;github-copilot-cli&quot;);</span>
+<span class="nc" id="L89">    candidates.add(&quot;copilot&quot;);</span>
+<span class="nc" id="L90">    return List.copyOf(candidates);</span>
+  }
+
+  private void appendFailure(StringBuilder failures, List&lt;String&gt; command,
+      String error) {
+<span class="nc bnc" id="L95" title="All 2 branches missed.">    if (!failures.isEmpty()) {</span>
+<span class="nc" id="L96">      failures.append(&quot; | &quot;);</span>
+    }
+<span class="nc" id="L98">    failures.append(&quot;command='&quot;)</span>
+<span class="nc" id="L99">        .append(command.stream().limit(7).collect(Collectors.joining(&quot; &quot;)))</span>
+<span class="nc" id="L100">        .append(&quot;' cause='&quot;)</span>
+<span class="nc" id="L101">        .append(StringUtils.defaultIfBlank(error, &quot;unknown&quot;))</span>
+<span class="nc" id="L102">        .append(&quot;'&quot;);</span>
+<span class="nc" id="L103">  }</span>
+
+  private CopilotExecutionOutput timeoutResult(Process process, Future&lt;String&gt; stdout,
+      Future&lt;String&gt; stderr) {
+<span class="nc" id="L107">    process.destroyForcibly();</span>
+<span class="nc" id="L108">    return new CopilotExecutionOutput(safeGet(stdout),</span>
+<span class="nc" id="L109">        &quot;Execution timed out after &quot; + properties.timeoutSeconds() + &quot; seconds.\n&quot;</span>
+<span class="nc" id="L110">            + safeGet(stderr),</span>
+        PromptExecutionStatus.TIMEOUT);
+  }
+
+  private CopilotExecutionOutput completedResult(int exitCode, String stdout,
+      String stderr) {
+<span class="nc bnc" id="L116" title="All 2 branches missed.">    PromptExecutionStatus status = exitCode == 0</span>
+<span class="nc" id="L117">        ? PromptExecutionStatus.SUCCESS : PromptExecutionStatus.FAILED;</span>
+<span class="nc" id="L118">    return new CopilotExecutionOutput(stdout, stderr, status);</span>
+  }
+
+  private String read(InputStream source) throws IOException {
+<span class="nc" id="L122">    byte[] bytes = source.readAllBytes();</span>
+<span class="nc" id="L123">    return StringUtils.defaultString(new String(bytes, StandardCharsets.UTF_8));</span>
+  }
+
+  private String safeGet(Future&lt;String&gt; future) {
+    try {
+<span class="nc" id="L128">      return future.get(50, TimeUnit.MILLISECONDS);</span>
+<span class="nc" id="L129">    } catch (Exception ignored) {</span>
+<span class="nc" id="L130">      return &quot;&quot;;</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

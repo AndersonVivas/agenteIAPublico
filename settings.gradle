@@ -1,0 +1,14 @@
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        maven {
+            url "https://pkgs.dev.azure.com/BancoPichinchaEC/0f20bf47-c965-46fe-8bd4-91df57fbb2e7/_packaging/Framework/maven/v1"
+            name "BancoPichinchaEC"
+            credentials {
+                username System.getenv("ARTIFACT_USERNAME")
+                password System.getenv("ARTIFACT_TOKEN")
+            }
+        }
+    }
+}
+rootProject.name = 'cde-msa-sp-openai-documentation'

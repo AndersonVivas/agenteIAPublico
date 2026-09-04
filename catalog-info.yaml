@@ -1,0 +1,39 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  namespace: default
+  name: cde-msa-sp-openai-documentation
+  description: comming soon
+
+  tags:
+    - dominio-bian
+    - subdominio-bian
+    - tecnologia
+    - capa-ddd
+ 
+  links:
+  - url: https://teams.microsoft.com/l/message/19:meeting_NDRkYWQ5ODctOGIxYy00MWVjLTk1NTYtNzhjZjg5NDBmNTll@thread.v2/1707943487928?context=%7B%22contextType%22%3A%22chat%22%7D #Autualizar con el link del repositorio
+    icon: link
+    title: Website
+  - url: https://app.swaggerhub.com/apis/Banco-Pichincha7/#api-dm-customer-contact-information-v1/1.0.0 #Autualizar el link del contrato en swagger hub
+    icon: DataObject
+    title: OpenApi
+  - url: https://pichincha.atlassian.net/wiki/spaces/#CDSRL/pages/2808054060/Documentaci+n+T+cnica+de+Desarrollo+de+Software #Actualizar el link de la documentación tectica
+    icon: link
+    title: DocumentacionTecnica
+ 
+  annotations:
+    dev.azure.com/project-repo: cde-msa-sp-openai-documentation #Actualizar nombre del proyecto/nombre del repositorio
+    dynatrace.com/dynatrace-entity-id: <dynatrace-entity-id> #Actualizar con el identificador de dynatrece
+    sonarcloud.io/project-key: <sonarcloud-project-key> #Actualizar con el projectKey de Sonar
+ 
+spec:
+  type: openapi
+  owner: <owner>
+  system: <system> #Actualizar sistema que corresponda
+  dependsOn:
+    - component:frm-spa-optimus-core #Actualizar dependencias caso contrario eliminar
+  domain: <domain> #Actualizar con el dominio del negocio
+  lifecycle: <lifecycle> #Actualizar ambiente
+  definition:
+    $text: https://dev.azure.com/BancoPichinchaEC/arq-framework/_git/frm-msa-optimus-core?path=/src/main/resources/openapi.yaml&version=GBdevelop #Actualizar la url de OPEN API  

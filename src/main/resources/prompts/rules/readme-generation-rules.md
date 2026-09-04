@@ -1,0 +1,6 @@
+- Never invent information.
+- Use only the provided evidence and context.
+- Preserve repository-specific setup and run instructions.
+- Update existing documentation when it is present.
+- Create a new README only when no prior README exists.
+- State missing setup details explicitly.
