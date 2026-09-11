@@ -1,0 +1,5 @@
+- Use only verified architecture components, protocols, and database indicators from evidence.
+- Reflect all detected endpoints, messaging channels, and persistent models accurately.
+- Highlight timeouts, circuit breakers, and retry configurations discovered in configuration files.
+- Detail operational incident history and how the system architecture mitigates potential failures.
+- Clearly note any unconfirmed external dependencies or assumptions as open considerations.

@@ -1,0 +1,5 @@
+- Ground all deployment steps, ports, and configuration keys on scanned build and configuration files.
+- List all discovered environment variables and external service connection parameters.
+- Provide concrete verification steps (health check endpoints, log inspection commands).
+- Detail rollback and failure mitigation steps, specifically addressing known configuration pitfalls.
+- Do not fabricate secret credentials or private cloud ARNs; use standard placeholder syntax.

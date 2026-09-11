@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -18,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.springframework.stereotype.Component;
@@ -48,6 +50,11 @@ public class RepositoryCodeScanService implements CodeScanService {
   private static final int MAX_CONFIG_INDICATORS = 250;
   private static final int MAX_DEPENDENCY_INDICATORS = 250;
   private static final String ANALYZER_VERSION = "2.2.0";
+  private static final Pattern TYPE_PATTERN = Pattern.compile(
+      "\\b(class|interface|enum|record)\\s+([A-Za-z0-9_]+)");
+  private static final Pattern ANNOTATION_PATTERN = Pattern.compile("@([A-Za-z0-9_]+)");
+  private static final Pattern METHOD_PATTERN = Pattern.compile(
+      "([A-Za-z0-9_]+)\\s*\\([^)]*\\)\\s*\\{?");
   private static final Map<String, String> LANGUAGE_BY_EXTENSION = Map.ofEntries(
       Map.entry("java", "java"),
       Map.entry("kt", "kotlin"),
@@ -137,22 +144,27 @@ public class RepositoryCodeScanService implements CodeScanService {
     validatePath(root);
     List<Path> allRegularFiles = listAllRegularFiles(root);
     List<Path> regularFiles = filterScannableFiles(root, allRegularFiles);
-    List<CodeSignalEvidence> apiEvidence = collectEvidence(root, regularFiles,
-      API_PATTERN, API_EXTENSIONS, "API", MAX_API_INDICATORS, true);
-    List<CodeSignalEvidence> dbEvidence = collectEvidence(root, regularFiles,
-      DB_PATTERN, DB_EXTENSIONS, "DATABASE", MAX_DB_INDICATORS, false);
-    List<CodeSignalEvidence> exceptionEvidence = collectEvidence(root, regularFiles,
-      EXCEPTION_PATTERN, EXCEPTION_EXTENSIONS, "EXCEPTION",
-      MAX_EXCEPTION_INDICATORS, false);
-    List<CodeSignalEvidence> configEvidence = collectEvidence(root, regularFiles,
-      CONFIG_PATTERN, CONFIG_EXTENSIONS, "CONFIG", MAX_CONFIG_INDICATORS, false);
-    List<CodeSignalEvidence> dependencyEvidence = collectEvidence(root, regularFiles,
-      DEPENDENCY_PATTERN, DEPENDENCY_EXTENSIONS, "DEPENDENCY",
-      MAX_DEPENDENCY_INDICATORS, false);
-    List<CodeSignalEvidence> evidences = mergeEvidence(apiEvidence, dbEvidence,
-      exceptionEvidence, configEvidence, dependencyEvidence);
+    String scanId = UUID.randomUUID().toString();
+    String repositoryFingerprint = buildRepositoryFingerprint(root);
+    SignalCollector collector = new SignalCollector();
+    for (Path path : regularFiles) {
+      scanFile(root, path, scanId, collector);
+    }
+    List<CodeSignalEvidence> evidences = mergeEvidence(collector.api, collector.db,
+        collector.exception, collector.config, collector.dependency);
     long scannedBytes = countScannedBytes(regularFiles);
+    return createScanSummary(root, scanId, repositoryFingerprint, startedAt,
+        allRegularFiles, regularFiles, collector, evidences, scannedBytes);
+  }
+
+  private CodeScanSummary createScanSummary(Path root, String scanId,
+      String repositoryFingerprint, long startedAt, List<Path> allFiles,
+      List<Path> regularFiles, SignalCollector collector,
+      List<CodeSignalEvidence> evidences, long scannedBytes) {
     return new CodeScanSummary(
+        scanId,
+        repositoryFingerprint,
+        Instant.now(),
         regularFiles.size(),
         countByExtension(regularFiles, "java"),
         countByExtension(regularFiles, "yml") + countByExtension(regularFiles, "yaml"),
@@ -160,14 +172,19 @@ public class RepositoryCodeScanService implements CodeScanService {
         countDirectories(root),
         countByLanguage(regularFiles),
         countByExtension(regularFiles),
-      toIndicatorStrings(apiEvidence),
-      toIndicatorStrings(dbEvidence),
-      toIndicatorStrings(exceptionEvidence),
-      evidences,
-      buildMetadata(root, startedAt, allRegularFiles.size(), regularFiles.size(),
-        apiEvidence.size(), dbEvidence.size(), exceptionEvidence.size(),
-        configEvidence.size(), dependencyEvidence.size(),
-        evidences.size(), scannedBytes));
+        toIndicatorStrings(collector.api),
+        toIndicatorStrings(collector.db),
+        toIndicatorStrings(collector.exception),
+        evidences,
+        buildMetadata(root, repositoryFingerprint, startedAt, allFiles.size(),
+            regularFiles.size(), collector.api.size(), collector.db.size(),
+            collector.exception.size(), collector.config.size(),
+            collector.dependency.size(), evidences.size(), scannedBytes));
+  }
+
+  private String buildRepositoryFingerprint(Path root) {
+    String normalizedPath = root.toAbsolutePath().normalize().toString();
+    return "REPO-" + shortSha256(normalizedPath);
   }
 
   private void validatePath(Path root) {
@@ -223,84 +240,118 @@ public class RepositoryCodeScanService implements CodeScanService {
     return counters;
   }
 
-  private List<CodeSignalEvidence> collectEvidence(Path root, List<Path> files,
-      Pattern pattern, Set<String> allowedExtensions, String signalType,
-      int maxIndicators, boolean includeOpenApiPaths) {
-    List<CodeSignalEvidence> evidences = new ArrayList<>();
-    for (Path path : files) {
-      if (!isTextFile(path) || !allowedExtensions.contains(extension(path))) {
-        continue;
-      }
-      collectFileEvidence(root, path, pattern, signalType, includeOpenApiPaths,
-          maxIndicators, evidences);
-      if (evidences.size() >= maxIndicators) {
-        break;
-      }
+  private void scanFile(Path root, Path path, String scanId, SignalCollector collector) {
+    if (!isTextFile(path)) {
+      return;
     }
-    return List.copyOf(evidences);
-  }
-
-  private void collectFileEvidence(Path root, Path path, Pattern pattern,
-      String signalType, boolean includeOpenApiPaths, int maxIndicators,
-      List<CodeSignalEvidence> evidences) {
+    String ext = extension(path);
     List<String> lines = readLines(path);
     for (int index = 0; index < lines.size(); index++) {
-      String line = lines.get(index);
-      boolean matched = pattern.matcher(line).find();
-      if (!matched && includeOpenApiPaths && isOpenApiPathLine(path, line)) {
-        matched = true;
-      }
-      if (matched) {
-        evidences.add(buildEvidence(root, path, lines, index, signalType));
-      }
-      if (evidences.size() >= maxIndicators) {
-        return;
-      }
+      scanLine(root, path, lines, index, ext, scanId, collector);
     }
+  }
+
+  private void scanLine(Path root, Path path, List<String> lines, int index,
+      String ext, String scanId, SignalCollector collector) {
+    String line = lines.get(index);
+    checkApiSignal(root, path, lines, index, line, ext, scanId, collector);
+    checkDbSignal(root, path, lines, index, line, ext, scanId, collector);
+    checkExceptionSignal(root, path, lines, index, line, ext, scanId, collector);
+    checkConfigSignal(root, path, lines, index, line, ext, scanId, collector);
+    checkDependencySignal(root, path, lines, index, line, ext, scanId, collector);
+  }
+
+  private void checkApiSignal(Path root, Path path, List<String> lines, int index,
+      String line, String ext, String scanId, SignalCollector collector) {
+    if (collector.api.size() >= MAX_API_INDICATORS || !API_EXTENSIONS.contains(ext)) {
+      return;
+    }
+    boolean matched = API_PATTERN.matcher(line).find() || isOpenApiPathLine(path, line);
+    if (matched) {
+      collector.api.add(buildEvidence(root, path, lines, index, "API", scanId));
+    }
+  }
+
+  private void checkDbSignal(Path root, Path path, List<String> lines, int index,
+      String line, String ext, String scanId, SignalCollector collector) {
+    if (collector.db.size() >= MAX_DB_INDICATORS || !DB_EXTENSIONS.contains(ext)) {
+      return;
+    }
+    if (DB_PATTERN.matcher(line).find()) {
+      collector.db.add(buildEvidence(root, path, lines, index, "DATABASE", scanId));
+    }
+  }
+
+  private void checkExceptionSignal(Path root, Path path, List<String> lines, int index,
+      String line, String ext, String scanId, SignalCollector collector) {
+    if (collector.exception.size() >= MAX_EXCEPTION_INDICATORS
+        || !EXCEPTION_EXTENSIONS.contains(ext)) {
+      return;
+    }
+    if (EXCEPTION_PATTERN.matcher(line).find()) {
+      collector.exception.add(buildEvidence(root, path, lines, index, "EXCEPTION", scanId));
+    }
+  }
+
+  private void checkConfigSignal(Path root, Path path, List<String> lines, int index,
+      String line, String ext, String scanId, SignalCollector collector) {
+    if (collector.config.size() >= MAX_CONFIG_INDICATORS || !CONFIG_EXTENSIONS.contains(ext)) {
+      return;
+    }
+    if (line.trim().length() >= 8 && CONFIG_PATTERN.matcher(line).find()) {
+      collector.config.add(buildEvidence(root, path, lines, index, "CONFIG", scanId));
+    }
+  }
+
+  private void checkDependencySignal(Path root, Path path, List<String> lines, int index,
+      String line, String ext, String scanId, SignalCollector collector) {
+    if (collector.dependency.size() >= MAX_DEPENDENCY_INDICATORS
+        || !DEPENDENCY_EXTENSIONS.contains(ext)
+        || isCommentLine(line)) {
+      return;
+    }
+    if (DEPENDENCY_PATTERN.matcher(line).find()) {
+      collector.dependency.add(buildEvidence(root, path, lines, index, "DEPENDENCY", scanId));
+    }
+  }
+
+  private boolean isCommentLine(String line) {
+    String trimmed = line.trim();
+    return trimmed.startsWith("//")
+        || trimmed.startsWith("*")
+        || trimmed.startsWith("/*")
+        || trimmed.startsWith("<!--")
+        || trimmed.startsWith("#");
   }
 
   private CodeSignalEvidence buildEvidence(Path root, Path path, List<String> lines,
-      int lineIndex, String signalType) {
+      int lineIndex, String signalType, String scanId) {
     int start = Math.max(1, lineIndex + 1 - SNIPPET_CONTEXT_LINES);
     int end = Math.min(lines.size(), lineIndex + 1 + SNIPPET_CONTEXT_LINES);
-    String relativePath = root.relativize(path).toString();
+    String relPath = root.relativize(path).toString();
     String matchLine = lines.get(lineIndex).trim();
-    String matchedRule = detectRule(signalType, matchLine);
-    String symbolName = findSymbolName(path, lines, lineIndex, matchedRule);
-    String scopeSymbol = findScopeSymbol(path, lines, lineIndex);
-    int matchLineNumber = lineIndex + 1;
-    String language = languageFor(path);
-    String sourceKind = sourceKindFor(path);
-    String technology = technologyFor(signalType, matchLine, path);
-    String ruleId = normalizeRuleId(signalType, matchedRule);
-    String severityHint = severityHintFor(signalType, matchedRule);
-    String runtimeSurface = runtimeSurfaceFor(signalType, matchedRule);
-    List<String> dependencySurface = dependencySurfaceFor(matchLine);
-    String evidenceId = buildEvidenceId(relativePath, signalType, matchedRule,
-      matchLineNumber, matchLine);
+    String rule = detectRule(signalType, matchLine);
+    int matchLineNum = lineIndex + 1;
+    String evidenceId = buildEvidenceId(relPath, signalType, rule, matchLineNum, matchLine);
+    return createEvidenceInstance(path, lines, lineIndex, signalType, scanId,
+        relPath, matchLine, rule, matchLineNum, evidenceId, start, end);
+  }
+
+  private CodeSignalEvidence createEvidenceInstance(Path path, List<String> lines,
+      int lineIndex, String signalType, String scanId, String relPath,
+      String matchLine, String rule, int matchLineNum, String evidenceId,
+      int start, int end) {
     return new CodeSignalEvidence(
-        signalType,
-      sourceKind,
-      language,
-      technology,
-      relativePath,
-        symbolName,
-      scopeSymbol,
-      evidenceId,
-        ruleId,
-        matchedRule,
-        matchLine,
-      severityHint,
-      runtimeSurface,
-      dependencySurface,
-      probableCauseFor(signalType, matchedRule),
-      recoveryActionFor(signalType, matchedRule),
-        start,
-        end,
-      matchLineNumber,
-        snippetLines(lines, start, end),
-        confidenceFor(signalType, matchedRule),
-        tagsFor(signalType, matchLine, matchedRule));
+        evidenceId, scanId, signalType, sourceKindFor(path), languageFor(path),
+        technologyFor(signalType, matchLine, path), relPath,
+        findSymbolName(path, lines, lineIndex, rule),
+        findScopeSymbol(path, lines, lineIndex),
+        normalizeRuleId(signalType, rule), rule, matchLine,
+        severityHintFor(signalType, rule), runtimeSurfaceFor(signalType, rule),
+        dependencySurfaceFor(matchLine), probableCauseFor(signalType, rule),
+        recoveryActionFor(signalType, rule), start, end, matchLineNum,
+        snippetLines(lines, start, end), confidenceFor(signalType, rule),
+        tagsFor(signalType, matchLine, rule));
   }
 
   private String sourceKindFor(Path path) {
@@ -318,10 +369,27 @@ public class RepositoryCodeScanService implements CodeScanService {
   }
 
   private String technologyFor(String signalType, String line, Path path) {
-    String normalized = line.toLowerCase();
-    if (normalized.contains("@feignclient") || normalized.contains("spring")) {
+    String norm = line.toLowerCase();
+    String filePath = path.toString().toLowerCase();
+    if (norm.contains("springboot") || norm.contains("spring-boot")) {
+      return "spring-boot";
+    }
+    if (norm.contains("@feignclient") || norm.contains("spring")) {
       return "spring";
     }
+    if (norm.contains("azure")) {
+      return "azure";
+    }
+    if (norm.contains("aws") || norm.contains("amazon")) {
+      return "aws";
+    }
+    if (norm.contains("k8s") || filePath.contains("k8s") || norm.contains("kubernetes")) {
+      return "kubernetes";
+    }
+    return technologyForSecondary(norm, filePath);
+  }
+
+  private String technologyForSecondary(String normalized, String filePath) {
     if (normalized.contains("router.") || normalized.contains("app.")) {
       return "node";
     }
@@ -334,11 +402,18 @@ public class RepositoryCodeScanService implements CodeScanService {
     if (normalized.contains("redis")) {
       return "redis";
     }
-    if (signalType.equals("CONFIG")
-        && path.getFileName().toString().toLowerCase().contains("docker")) {
-      return "container";
+    if (filePath.contains("docker")) {
+      return "docker";
     }
     return "generic";
+  }
+
+  private static final class SignalCollector {
+    private final List<CodeSignalEvidence> api = new ArrayList<>();
+    private final List<CodeSignalEvidence> db = new ArrayList<>();
+    private final List<CodeSignalEvidence> exception = new ArrayList<>();
+    private final List<CodeSignalEvidence> config = new ArrayList<>();
+    private final List<CodeSignalEvidence> dependency = new ArrayList<>();
   }
 
   private String normalizeRuleId(String signalType, String matchedRule) {
@@ -527,23 +602,20 @@ public class RepositoryCodeScanService implements CodeScanService {
   }
 
   private String extractTypeName(String line) {
-    Pattern typePattern = Pattern.compile("\\b(class|interface|enum|record)\\s+([A-Za-z0-9_]+)");
-    var matcher = typePattern.matcher(line);
+    var matcher = TYPE_PATTERN.matcher(line);
     return matcher.find() ? matcher.group(2) : "";
   }
 
   private String extractAnnotationName(String line) {
-    Pattern annotationPattern = Pattern.compile("@([A-Za-z0-9_]+)");
-    var matcher = annotationPattern.matcher(line);
+    var matcher = ANNOTATION_PATTERN.matcher(line);
     return matcher.find() ? matcher.group(1) : "";
   }
 
   private String extractMethodName(String line) {
-    Pattern methodPattern = Pattern.compile("([A-Za-z0-9_]+)\\s*\\([^)]*\\)\\s*\\{?");
     if (line.startsWith("if") || line.startsWith("for") || line.startsWith("while")) {
       return "";
     }
-    var matcher = methodPattern.matcher(line);
+    var matcher = METHOD_PATTERN.matcher(line);
     return matcher.find() ? matcher.group(1) : "";
   }
 
@@ -817,13 +889,14 @@ public class RepositoryCodeScanService implements CodeScanService {
         + " | text=" + evidence.matchText();
   }
 
-  private ScanExecutionMetadata buildMetadata(Path root, long startedAt,
-      int totalFiles, int scannedFiles, int apiSignalsExtracted,
+  private ScanExecutionMetadata buildMetadata(Path root, String repositoryFingerprint,
+      long startedAt, int totalFiles, int scannedFiles, int apiSignalsExtracted,
       int databaseSignalsExtracted, int exceptionSignalsExtracted,
       int configSignalsExtracted, int dependencySignalsExtracted,
       int signalsExtracted, long scannedBytes) {
     String previousCommit = envValue("CDE_PREVIOUS_COMMIT", "");
     return new ScanExecutionMetadata(
+        repositoryFingerprint,
         !previousCommit.isBlank(),
         previousCommit,
         currentCommit(root),

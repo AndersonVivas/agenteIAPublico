@@ -19,11 +19,15 @@ class DefaultPromptPreviewServiceTest {
   void shouldDescribeScanSummaryByLanguageDistribution() {
     PromptBuilderService builder = new CapturingPromptBuilderService();
     DefaultPromptPreviewService service = new DefaultPromptPreviewService(builder);
-    CodeScanSummary summary = new CodeScanSummary(6, 0, 1, 1, 2,
+    CodeScanSummary summary = new CodeScanSummary(
+        "SCAN-123",
+        "REPO-ABC",
+        java.time.Instant.now(),
+        6, 0, 1, 1, 2,
         Map.of("python", 3L, "swift", 2L, "yaml", 1L),
         Map.of("py", 3L, "swift", 2L, "yml", 1L),
         List.of(), List.of(), List.of(), List.of(),
-        new ScanExecutionMetadata(false, "", "HEAD", "FULL", "v1", "2.2.0",
+        new ScanExecutionMetadata("REPO-ABC", false, "", "HEAD", "FULL", "v1", "2.2.0",
             10L, 6L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 100L));
 
     String prompt = service.buildPreview(request(), summary, "/tmp/repo", PromptType.ERROR_MANUAL);

@@ -1,6 +1,7 @@
 package com.pichincha.cdemsaspopenaidocumentation.domain;
 
 public record ScanExecutionMetadata(
+    String repositoryFingerprint,
     boolean analyzedBefore,
     String previousCommit,
     String currentCommit,

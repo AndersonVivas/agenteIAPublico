@@ -12,8 +12,12 @@ import com.pichincha.cdemsaspopenaidocumentation.prompt.domain.RepositoryMetadat
 import com.pichincha.cdemsaspopenaidocumentation.prompt.impl.DefaultPromptBuilderService;
 import com.pichincha.cdemsaspopenaidocumentation.prompt.strategy.ApiDocumentationPromptTemplateStrategy;
 import com.pichincha.cdemsaspopenaidocumentation.prompt.strategy.ArchitectureDocumentationPromptTemplateStrategy;
+import com.pichincha.cdemsaspopenaidocumentation.prompt.strategy.ChangelogPromptTemplateStrategy;
+import com.pichincha.cdemsaspopenaidocumentation.prompt.strategy.CodeDocumentationPromptTemplateStrategy;
+import com.pichincha.cdemsaspopenaidocumentation.prompt.strategy.DeploymentGuidePromptTemplateStrategy;
 import com.pichincha.cdemsaspopenaidocumentation.prompt.strategy.ErrorManualPromptTemplateStrategy;
 import com.pichincha.cdemsaspopenaidocumentation.prompt.strategy.ReadmeGenerationPromptTemplateStrategy;
+import com.pichincha.cdemsaspopenaidocumentation.prompt.strategy.TechnicalSpecificationPromptTemplateStrategy;
 import com.pichincha.cdemsaspopenaidocumentation.prompt.support.ClasspathPromptTemplateLoader;
 import com.pichincha.cdemsaspopenaidocumentation.prompt.support.PromptContextFormatter;
 import com.pichincha.cdemsaspopenaidocumentation.prompt.support.SimplePromptTemplateRenderer;
@@ -31,6 +35,7 @@ class PromptBuilderServiceTest {
     String prompt = service.buildPrompt(PromptType.ERROR_MANUAL, context);
 
     assertTrue(prompt.contains("# SYSTEM"));
+    assertTrue(prompt.contains("# CONSTRAINTS"));
     assertTrue(prompt.contains("# OBJECTIVE"));
     assertTrue(prompt.contains("# EVIDENCE"));
     assertTrue(prompt.contains("# RAG_CONTEXT"));
@@ -40,6 +45,60 @@ class PromptBuilderServiceTest {
     assertTrue(prompt.contains("/business/cash-flow-management/v1/remittances"));
     assertTrue(prompt.contains("No current documentation provided.") == false);
     assertTrue(prompt.contains("Never invent information."));
+  }
+
+  @Test
+  void buildPromptShouldSupportAllConfiguredPromptTypes() {
+    DefaultPromptBuilderService service = service();
+    PromptContext context = context();
+
+    for (PromptType type : PromptType.values()) {
+      String prompt = service.buildPrompt(type, context);
+      assertTrue(prompt.contains("# SYSTEM"));
+      assertTrue(prompt.contains("# CONSTRAINTS"));
+      assertTrue(prompt.contains("# OBJECTIVE"));
+      assertTrue(prompt.contains("# EVIDENCE"));
+    }
+  }
+
+  @Test
+  void buildPromptForChangelogShouldIncludeSectionsAndIncidents() {
+    DefaultPromptBuilderService service = service();
+    String prompt = service.buildPrompt(PromptType.CHANGELOG, context());
+
+    assertTrue(prompt.contains("Correcciones de Errores e Incidentes"));
+    assertTrue(prompt.contains("INC-1: previous outage"));
+    assertTrue(prompt.contains("sample-repo"));
+  }
+
+  @Test
+  void buildPromptForCodeDocumentationShouldIncludeArchitectureSections() {
+    DefaultPromptBuilderService service = service();
+    String prompt = service.buildPrompt(PromptType.CODE_DOCUMENTATION, context());
+
+    assertTrue(prompt.contains("Arquitectura de Clases y Paquetes"));
+    assertTrue(prompt.contains("Manejo de Excepciones"));
+    assertTrue(prompt.contains("sample-repo"));
+  }
+
+  @Test
+  void buildPromptForTechnicalSpecificationShouldIncludeResilienceSections() {
+    DefaultPromptBuilderService service = service();
+    String prompt = service.buildPrompt(PromptType.TECHNICAL_SPECIFICATION, context());
+
+    assertTrue(prompt.contains("Interfaces y Contratos"));
+    assertTrue(prompt.contains("Resiliencia, Politicas de Timeout"));
+    assertTrue(prompt.contains("sample-repo"));
+  }
+
+  @Test
+  void buildPromptForDeploymentGuideShouldIncludeDeploymentSections() {
+    DefaultPromptBuilderService service = service();
+    String prompt = service.buildPrompt(PromptType.DEPLOYMENT_GUIDE, context());
+
+    assertTrue(prompt.contains("Variables de Entorno"));
+    assertTrue(prompt.contains("Procedimientos de Rollback"));
+    assertTrue(prompt.contains("sample-repo"));
   }
 
   @Test
@@ -66,10 +125,15 @@ class PromptBuilderServiceTest {
 
   private DefaultPromptBuilderService service() {
     return new DefaultPromptBuilderService(
-        List.of(new ErrorManualPromptTemplateStrategy(),
+        List.of(
+            new ErrorManualPromptTemplateStrategy(),
             new ApiDocumentationPromptTemplateStrategy(),
             new ArchitectureDocumentationPromptTemplateStrategy(),
-            new ReadmeGenerationPromptTemplateStrategy()),
+            new ReadmeGenerationPromptTemplateStrategy(),
+            new ChangelogPromptTemplateStrategy(),
+            new CodeDocumentationPromptTemplateStrategy(),
+            new TechnicalSpecificationPromptTemplateStrategy(),
+            new DeploymentGuidePromptTemplateStrategy()),
         new PromptBuilderProperties(null, null),
         new ClasspathPromptTemplateLoader(),
         new SimplePromptTemplateRenderer(),
@@ -80,9 +144,9 @@ class PromptBuilderServiceTest {
     RepositoryMetadata metadata = new RepositoryMetadata("sample-repo",
         "/workspace/sample-repo", "hexagonal", "spring-boot",
         Map.of("language", "java", "branch", "main"));
-    CodeSignalEvidence evidence = new CodeSignalEvidence("API", "source", "java",
-        "spring", "src/main/resources/openapi.yaml", "remittanceController",
-        "remittanceController", "EV-1", "RULE-API-001", "OpenAPI path found",
+    CodeSignalEvidence evidence = new CodeSignalEvidence("EV-1", "SCAN-1", "API", "source",
+        "java", "spring", "src/main/resources/openapi.yaml", "remittanceController",
+        "remittanceController", "RULE-API-001", "OpenAPI path found",
         "/business/cash-flow-management/v1/remittances", "high", "rest", List.of("api"),
         "Endpoint detected in OpenAPI", "Document the endpoint contract", 4, 4, 4,
         List.of("/business/cash-flow-management/v1/remittances"), 0.88,

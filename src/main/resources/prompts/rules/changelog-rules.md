@@ -1,0 +1,5 @@
+- Never invent changes, commits, or features not present in the provided evidence.
+- Group items clearly by category (Added, Changed, Fixed, Deprecated, Removed, Breaking Changes).
+- Link fixed issues and incidents directly to the historical incidents and exception evidences provided.
+- If current documentation exists, preserve previous version entries and append new release notes.
+- Use bullet points with clear, concise technical descriptions.

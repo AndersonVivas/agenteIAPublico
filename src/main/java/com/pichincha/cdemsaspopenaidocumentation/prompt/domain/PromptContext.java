@@ -19,7 +19,9 @@ public record PromptContext(
     evidences = evidences == null ? List.of() : List.copyOf(evidences);
     ragContext = normalize(ragContext);
     currentDocumentation = normalize(currentDocumentation);
-    historicalIncidents = historicalIncidents == null ? List.of() : List.copyOf(historicalIncidents);
+    historicalIncidents = historicalIncidents == null
+        ? List.of()
+        : List.copyOf(historicalIncidents);
   }
 
   private static String normalize(String value) {

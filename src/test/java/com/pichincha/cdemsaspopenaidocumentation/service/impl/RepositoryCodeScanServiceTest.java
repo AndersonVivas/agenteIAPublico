@@ -32,6 +32,10 @@ class RepositoryCodeScanServiceTest {
     assertEquals(2L, summary.filesByLanguage().get("yaml"));
     assertEquals(1L, summary.filesByExtension().get("md"));
     assertEquals("FULL", summary.metadata().scanMode());
+    assertFalse(summary.scanId().isBlank());
+    assertFalse(summary.repositoryFingerprint().isBlank());
+    assertTrue(summary.scanTimestamp() != null);
+    assertEquals(summary.repositoryFingerprint(), summary.metadata().repositoryFingerprint());
   }
 
   @Test
@@ -59,13 +63,16 @@ class RepositoryCodeScanServiceTest {
     assertTrue(summary.apiIndicators().stream().anyMatch(value -> value.contains("@GetMapping")));
     assertTrue(summary.databaseIndicators().stream().anyMatch(value -> value.contains("jdbc:")));
     assertTrue(summary.databaseIndicators().stream().anyMatch(value -> value.contains("@Entity")));
-    assertTrue(summary.exceptionIndicators().stream().anyMatch(value -> value.contains("throw new")));
+    assertTrue(summary.exceptionIndicators().stream()
+        .anyMatch(value -> value.contains("throw new")));
     assertFalse(summary.databaseIndicators().stream()
         .anyMatch(value -> value.toLowerCase().contains("redistribution")));
     assertFalse(summary.evidences().isEmpty());
     assertTrue(summary.evidences().stream().anyMatch(value -> value.signalType().equals("API")));
-    assertTrue(summary.evidences().stream().anyMatch(value -> value.signalType().equals("DATABASE")));
-    assertTrue(summary.evidences().stream().anyMatch(value -> value.signalType().equals("EXCEPTION")));
+    assertTrue(summary.evidences().stream()
+        .anyMatch(value -> value.signalType().equals("DATABASE")));
+    assertTrue(summary.evidences().stream()
+        .anyMatch(value -> value.signalType().equals("EXCEPTION")));
     assertTrue(summary.evidences().stream().anyMatch(value -> value.signalType().equals("CONFIG")));
     assertTrue(summary.evidences().stream()
       .anyMatch(value -> value.signalType().equals("DEPENDENCY")));
@@ -78,9 +85,12 @@ class RepositoryCodeScanServiceTest {
     assertTrue(summary.evidences().stream().allMatch(value -> !value.ruleId().isBlank()));
     assertTrue(summary.evidences().stream().allMatch(value -> !value.severityHint().isBlank()));
     assertTrue(summary.evidences().stream().allMatch(value -> !value.runtimeSurface().isBlank()));
-    assertTrue(summary.evidences().stream().allMatch(value -> !value.dependencySurface().isEmpty()));
+    assertTrue(summary.evidences().stream()
+        .allMatch(value -> !value.dependencySurface().isEmpty()));
     assertTrue(summary.evidences().stream().allMatch(value -> !value.scopeSymbol().isBlank()));
     assertTrue(summary.evidences().stream().allMatch(value -> !value.evidenceId().isBlank()));
+    assertTrue(summary.evidences().stream()
+        .allMatch(value -> value.scanId().equals(summary.scanId())));
     assertTrue(summary.evidences().stream().allMatch(value -> !value.probableCause().isBlank()));
     assertTrue(summary.evidences().stream().allMatch(value -> !value.recoveryAction().isBlank()));
     assertTrue(summary.apiIndicators().stream()
@@ -96,5 +106,69 @@ class RepositoryCodeScanServiceTest {
     assertTrue(summary.metadata().dependencySignalsExtracted() >= 1L);
     assertTrue(summary.metadata().elapsedMs() >= 0L);
     assertTrue(summary.metadata().filesScanned() >= 1L);
+  }
+
+  @Test
+  void scanRepositoryShouldFilterCommentLinesInDependencies() throws Exception {
+    Path repository = Files.createTempDirectory("scan-comments-test");
+    Files.createDirectories(repository.resolve("src/main/java"));
+    Files.writeString(repository.resolve("src/main/java/Service.java"),
+        "// https://ignore.example.com\n"
+            + "# https://ignore-hash.com\n"
+            + "/* https://ignore-block.com */\n"
+            + "String kafka = \"events\";\n");
+    RepositoryCodeScanService service = new RepositoryCodeScanService();
+    CodeScanSummary summary = service.scanRepository(repository.toString());
+    assertFalse(summary.evidences().stream()
+        .anyMatch(e -> e.matchText().contains("ignore.example.com")));
+    assertFalse(summary.evidences().stream()
+        .anyMatch(e -> e.matchText().contains("ignore-hash.com")));
+    assertTrue(summary.evidences().stream()
+        .anyMatch(e -> e.signalType().equals("DEPENDENCY") && e.matchText().contains("kafka")));
+  }
+
+  @Test
+  void scanRepositoryShouldFilterTrivialConfigMatches() throws Exception {
+    Path repository = Files.createTempDirectory("scan-config-test");
+    Files.createDirectories(repository.resolve("src/main/resources"));
+    Files.writeString(repository.resolve("src/main/resources/application.yml"),
+        "short: ${}\n"
+            + "tiny: ${a}\n"
+            + "valid_timeout: 5000\n"
+            + "env: ${DATABASE_URL:localhost}\n");
+    RepositoryCodeScanService service = new RepositoryCodeScanService();
+    CodeScanSummary summary = service.scanRepository(repository.toString());
+    assertFalse(summary.evidences().stream()
+        .anyMatch(e -> e.signalType().equals("CONFIG") && e.matchText().length() < 8));
+    assertTrue(summary.evidences().stream()
+        .anyMatch(e -> e.signalType().equals("CONFIG") && e.matchText().contains("DATABASE_URL")));
+  }
+
+  @Test
+  void scanRepositoryShouldDetectExpandedTechnologies() throws Exception {
+    Path repository = Files.createTempDirectory("scan-tech-test");
+    Files.createDirectories(repository.resolve("k8s"));
+    Files.createDirectories(repository.resolve("src/main/java"));
+    Files.writeString(repository.resolve("Dockerfile"), "FROM openjdk:25\n");
+    Files.writeString(repository.resolve("k8s/deployment.yaml"), "kind: Deployment\nredis: 6379\n");
+    Files.writeString(repository.resolve("src/main/java/Cloud.java"),
+        "String azure = \"azure-blob\";\nString aws = \"aws-sqs\";\n");
+    RepositoryCodeScanService service = new RepositoryCodeScanService();
+    CodeScanSummary summary = service.scanRepository(repository.toString());
+    assertTrue(summary.evidences().stream().anyMatch(e -> e.technology().equals("azure")));
+    assertTrue(summary.evidences().stream().anyMatch(e -> e.technology().equals("aws")));
+    assertTrue(summary.evidences().stream().anyMatch(e -> e.technology().equals("kubernetes")));
+  }
+
+  @Test
+  void scanRepositoryShouldGenerateDeterministicFingerprintAndUniqueScanIds() throws Exception {
+    Path repository = Files.createTempDirectory("scan-fingerprint-test");
+    Files.writeString(repository.resolve("README.md"), "# Title\n");
+    RepositoryCodeScanService service = new RepositoryCodeScanService();
+    CodeScanSummary scan1 = service.scanRepository(repository.toString());
+    CodeScanSummary scan2 = service.scanRepository(repository.toString());
+    assertEquals(scan1.repositoryFingerprint(), scan2.repositoryFingerprint());
+    assertFalse(scan1.scanId().equals(scan2.scanId()));
+    assertTrue(scan1.scanTimestamp() != null);
   }
 }

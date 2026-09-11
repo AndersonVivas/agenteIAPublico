@@ -1,0 +1,5 @@
+- Ground all explanations strictly on scanned symbols, classes, records, and interfaces.
+- Do not fabricate method parameters, return types, or architectural patterns not found in evidence.
+- Document known exceptions, error handling logic, and error recovery recommendations.
+- Keep identifiers, class names, method names, and package paths verbatim.
+- Update existing documentation if present, preserving valid sections.
