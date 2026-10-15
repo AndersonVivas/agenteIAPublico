@@ -1,6 +1,7 @@
 package com.pichincha.cdemsaspopenaidocumentation.config;
 
 import java.nio.file.Path;
+import java.time.Duration;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -10,11 +11,13 @@ public record GitCloneProperties(
     String username,
     String personalAccessToken,
     Path cloneDirectory,
-    boolean overwriteExisting) {
+    boolean overwriteExisting,
+    Duration cloneTimeout) {
 
   public GitCloneProperties {
     baseUrl = normalizeBaseUrl(baseUrl);
     cloneDirectory = cloneDirectory == null ? defaultCloneDirectory() : cloneDirectory;
+    cloneTimeout = cloneTimeout == null ? Duration.ofMinutes(5) : cloneTimeout;
   }
 
   public String repositoryUrl(String organization, String projectName,
@@ -62,6 +65,6 @@ public record GitCloneProperties(
 
   private static Path defaultCloneDirectory() {
     return Path.of(System.getProperty("user.home"), "Documents",
-        "repositorios de agentes");
+        "iniciativaIADocumentación", "repositoriosAnalizados");
   }
 }

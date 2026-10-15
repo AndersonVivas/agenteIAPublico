@@ -35,6 +35,13 @@ public class DefaultPromptExecutionService implements PromptExecutionService {
       "No ejecutes herramientas ni simules herramientas.",
       "No describas pasos de analisis.",
       "Usa solamente la evidencia ya incluida en este prompt.");
+  private static final String STRICT_DOCUMENTATION_MODE_DIRECTIVE = String.join("\n",
+      "## STRICT DOCUMENTATION MODE",
+      "STRICT DOCUMENTATION MODE",
+      "No analizar código fuente",
+      "No navegar directorios",
+      "No abrir archivos",
+      "La única fuente permitida es CodeScanSummary");
   private final RepositoryDocumentResolver repositoryDocumentResolver;
   private final PromptCommandExecutor promptCommandExecutor;
   private final MarkdownDocumentService markdownDocumentService;
@@ -63,8 +70,19 @@ public class DefaultPromptExecutionService implements PromptExecutionService {
         request.repositoryName());
     Optional<RepositoryDocumentSnapshot> previous = resolvePreviousDocument(request,
         documentName);
-    CopilotExecutionOutput output = runCopilotExecution(request, previous);
+    CopilotExecutionOutput output = runCopilotExecution(request);
     return buildResult(request, output, previous, documentName, start);
+  }
+
+  @Override
+  public PromptExecutionResult persistGeneratedDocument(PromptExecutionRequest request,
+      String generatedContent) {
+    Instant start = Instant.now();
+    String documentName = markdownDocumentService.buildDocumentName(request.repositoryName());
+    Optional<RepositoryDocumentSnapshot> previous = resolvePreviousDocument(request, documentName);
+    Path documentPath = persistDocument(request, generatedContent, previous, documentName);
+    return successfulResult(generatedContent, documentName, documentPath,
+        Duration.between(start, Instant.now()).toMillis());
   }
 
   private Optional<RepositoryDocumentSnapshot> resolvePreviousDocument(
@@ -73,28 +91,18 @@ public class DefaultPromptExecutionService implements PromptExecutionService {
         documentationProperties.outputDirectory(), documentName);
   }
 
-  private CopilotExecutionOutput runCopilotExecution(PromptExecutionRequest request,
-      Optional<RepositoryDocumentSnapshot> previous) {
-    String prompt = buildPromptContent(request.promptContent(), previous);
-    CopilotExecutionOutput output = promptCommandExecutor.execute(prompt,
-        Path.of(request.repositoryPath()));
+  private CopilotExecutionOutput runCopilotExecution(PromptExecutionRequest request) {
+    String prompt = buildPromptContent(request.promptContent());
+    CopilotExecutionOutput output = promptCommandExecutor.execute(prompt);
     if (!shouldRetryWithDirectResponse(output)) {
       return output;
     }
     String retryPrompt = String.join("\n\n", prompt, DIRECT_RESPONSE_RETRY_DIRECTIVE);
-    return promptCommandExecutor.execute(retryPrompt, Path.of(request.repositoryPath()));
+    return promptCommandExecutor.execute(retryPrompt);
   }
 
-  private String buildPromptContent(String basePrompt,
-      Optional<RepositoryDocumentSnapshot> previous) {
-    if (!documentationProperties.evolutionaryMode() || previous.isEmpty()) {
-      return basePrompt;
-    }
-    return String.join("\n\n", basePrompt,
-        "## Existing Documentation",
-        previous.get().content(),
-        "## Evolution Directive",
-        "Update the documentation incrementally, preserving verified history.");
+  private String buildPromptContent(String basePrompt) {
+    return String.join("\n\n", basePrompt, STRICT_DOCUMENTATION_MODE_DIRECTIVE);
   }
 
   private PromptExecutionResult buildResult(PromptExecutionRequest request,
@@ -214,14 +222,14 @@ public class DefaultPromptExecutionService implements PromptExecutionService {
         || normalized.contains("try 'copilot --help' for more information");
   }
 
-    private PromptExecutionResult failedWithDocumentResult(CopilotExecutionOutput output,
+  private PromptExecutionResult failedWithDocumentResult(CopilotExecutionOutput output,
       String documentName, Path documentPath, long executionTime) {
     String failureContent = StringUtils.isBlank(output.stderr())
-      ? output.stdout() : output.stderr();
+        ? output.stdout() : output.stderr();
     return new PromptExecutionResult(UUID.randomUUID().toString(), failureContent,
-      documentPath.toString(), documentName, output.status(), executionTime,
-      PROVIDER, Instant.now());
-    }
+        documentPath.toString(), documentName, output.status(), executionTime,
+        PROVIDER, Instant.now());
+  }
 
   private Path persistDocument(PromptExecutionRequest request, String generatedContent,
       Optional<RepositoryDocumentSnapshot> previous, String documentName) {

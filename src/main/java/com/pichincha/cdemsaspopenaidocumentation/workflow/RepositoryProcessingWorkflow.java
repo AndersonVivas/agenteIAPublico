@@ -9,5 +9,6 @@ import io.temporal.workflow.WorkflowMethod;
 public interface RepositoryProcessingWorkflow {
 
   @WorkflowMethod
-  RepositoryCloneResponse process(RepositoryCloneRequest request);
+  RepositoryCloneResponse process(RepositoryCloneRequest request, boolean generateDocumentation,
+      String templateId);
 }

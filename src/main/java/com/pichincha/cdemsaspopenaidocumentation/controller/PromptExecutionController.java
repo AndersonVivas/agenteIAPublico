@@ -1,8 +1,8 @@
 package com.pichincha.cdemsaspopenaidocumentation.controller;
 
-import com.pichincha.cdemsaspopenaidocumentation.copilot.PromptExecutionService;
-import com.pichincha.cdemsaspopenaidocumentation.copilot.domain.PromptExecutionRequest;
+import com.pichincha.cdemsaspopenaidocumentation.copilot.DocumentationGenerationService;
 import com.pichincha.cdemsaspopenaidocumentation.copilot.domain.PromptExecutionResult;
+import com.pichincha.cdemsaspopenaidocumentation.domain.DocumentationGenerationRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -16,15 +16,16 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/repository-agent")
 public class PromptExecutionController {
 
-  private final PromptExecutionService promptExecutionService;
+  private final DocumentationGenerationService documentationGenerationService;
 
-  public PromptExecutionController(PromptExecutionService promptExecutionService) {
-    this.promptExecutionService = promptExecutionService;
+  public PromptExecutionController(
+      DocumentationGenerationService documentationGenerationService) {
+    this.documentationGenerationService = documentationGenerationService;
   }
 
   @PostMapping("/execute-prompt")
   public ResponseEntity<PromptExecutionResult> executePrompt(
-      @Valid @RequestBody PromptExecutionRequest request) {
-    return ResponseEntity.ok(promptExecutionService.execute(request));
+      @Valid @RequestBody DocumentationGenerationRequest request) {
+    return ResponseEntity.ok(documentationGenerationService.generate(request));
   }
 }

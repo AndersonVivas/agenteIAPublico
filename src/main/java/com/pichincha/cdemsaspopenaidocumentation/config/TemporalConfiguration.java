@@ -1,6 +1,8 @@
 package com.pichincha.cdemsaspopenaidocumentation.config;
 
 import com.pichincha.cdemsaspopenaidocumentation.activity.CloneRepositoryActivity;
+import com.pichincha.cdemsaspopenaidocumentation.activity.GenerateDocumentationActivity;
+import com.pichincha.cdemsaspopenaidocumentation.activity.ScanRepositoryActivity;
 import com.pichincha.cdemsaspopenaidocumentation.workflow.impl.RepositoryProcessingWorkflowImpl;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowClientOptions;
@@ -36,10 +38,13 @@ public class TemporalConfiguration {
   @Bean(destroyMethod = "shutdown")
   WorkerFactory workerFactory(WorkflowClient workflowClient,
       CloneRepositoryActivity cloneRepositoryActivity,
+      ScanRepositoryActivity scanRepositoryActivity,
+      GenerateDocumentationActivity generateDocumentationActivity,
       TemporalProperties properties) {
     WorkerFactory workerFactory = WorkerFactory.newInstance(workflowClient);
     Worker worker = workerFactory.newWorker(properties.taskQueue());
-    worker.registerActivitiesImplementations(cloneRepositoryActivity);
+    worker.registerActivitiesImplementations(cloneRepositoryActivity, scanRepositoryActivity,
+        generateDocumentationActivity);
     worker.registerWorkflowImplementationTypes(RepositoryProcessingWorkflowImpl.class);
     workerFactory.start();
     return workerFactory;

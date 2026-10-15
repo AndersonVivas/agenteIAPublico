@@ -6,4 +6,9 @@ import com.pichincha.cdemsaspopenaidocumentation.copilot.domain.PromptExecutionR
 public interface PromptExecutionService {
 
   PromptExecutionResult execute(PromptExecutionRequest request);
+
+  default PromptExecutionResult persistGeneratedDocument(PromptExecutionRequest request,
+      String generatedContent) {
+    throw new UnsupportedOperationException("Generated-document persistence is not supported.");
+  }
 }

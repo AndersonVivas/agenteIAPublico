@@ -39,7 +39,7 @@ public class GitRepositoryCloner {
         properties.repositoryUrl(request.organization(), request.projectName(),
             request.repositoryName()),
         targetDirectory.toString());
-    commandExecutor.execute(command, properties.cloneDirectory());
+    commandExecutor.execute(command, properties.cloneDirectory(), properties.cloneTimeout());
   }
 
   private void prepareTargetDirectory(Path targetDirectory) {
@@ -48,7 +48,7 @@ public class GitRepositoryCloner {
         throw new RepositoryCloneException("Target directory already exists: " + targetDirectory);
       }
       deleteIfNeeded(targetDirectory);
-      Files.createDirectories(targetDirectory);
+      Files.createDirectories(targetDirectory.getParent());
     } catch (IOException exception) {
       throw new RepositoryCloneException("Unable to prepare repository directory.", exception);
     }

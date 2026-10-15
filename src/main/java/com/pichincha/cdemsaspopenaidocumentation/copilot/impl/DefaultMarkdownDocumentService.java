@@ -44,7 +44,9 @@ public class DefaultMarkdownDocumentService implements MarkdownDocumentService {
   @Override
   public String createMarkdown(PromptExecutionRequest request, String generatedContent,
       String commitHash, int version, Instant generatedAt) {
-    String title = resolveTitle(request.templateType());
+    String title = StringUtils.defaultIfBlank(
+      request.metadata().get("templateName"),
+      resolveTitle(request.templateType()));
     String body = StringUtils.defaultString(generatedContent).trim();
     return String.join("\n", "---",
         "generated-at: " + generatedAt,

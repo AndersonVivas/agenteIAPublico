@@ -25,10 +25,10 @@ public record RepositoryCloneResponse(
   }
 
   public static RepositoryCloneResponse temporal(RepositoryCloneResult result,
-      String workflowId) {
+      String workflowId, CodeScanSummary codeScanSummary) {
     return new RepositoryCloneResponse(result.repositoryName(), result.pullRequestId(),
         result.localPath(), result.status(), "TEMPORAL", workflowId,
-        List.of("CLONE"), null, null, null);
+        List.of("CLONE", "SCAN_CODE"), codeScanSummary, null, null);
   }
 
   public RepositoryCloneResponse withPromptPreview(String promptPreview) {

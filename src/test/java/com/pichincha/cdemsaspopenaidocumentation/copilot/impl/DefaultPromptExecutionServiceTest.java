@@ -29,7 +29,7 @@ class DefaultPromptExecutionServiceTest {
     AtomicReference<String> capturedPrompt = new AtomicReference<>("");
     RepositoryDocumentResolver resolver = (repo, outDir, name) -> Optional.of(
         new RepositoryDocumentSnapshot(Path.of(repo, outDir, name), "old doc", 2));
-    PromptCommandExecutor commandExecutor = (prompt, path) -> {
+    PromptCommandExecutor commandExecutor = prompt -> {
       capturedPrompt.set(prompt);
       return new CopilotExecutionOutput("new content", "", PromptExecutionStatus.SUCCESS);
     };
@@ -37,7 +37,8 @@ class DefaultPromptExecutionServiceTest {
     DocumentPersistenceService persistence =
         (repo, outDir, centralizedPath, name, content, overwrite) ->
             Path.of(repo, outDir, name);
-    DocumentationProperties properties = new DocumentationProperties("docs", "", true, true);
+    DocumentationProperties properties = new DocumentationProperties("docs", "", true,
+      true);
     RepositoryCommitResolver commitResolver = path -> Optional.of("abc123");
 
     DefaultPromptExecutionService service = new DefaultPromptExecutionService(
@@ -47,8 +48,9 @@ class DefaultPromptExecutionServiceTest {
     assertEquals(PromptExecutionStatus.SUCCESS, result.executionStatus());
     assertEquals("repository-agent.md", result.documentName());
     assertTrue(result.documentPath().endsWith("docs/repository-agent.md"));
-    assertTrue(capturedPrompt.get().contains("## Existing Documentation"));
-    assertTrue(capturedPrompt.get().contains("old doc"));
+    assertTrue(capturedPrompt.get().contains("STRICT DOCUMENTATION MODE"));
+    assertTrue(capturedPrompt.get().contains("No analizar código fuente"));
+    assertTrue(capturedPrompt.get().contains("CodeScanSummary"));
   }
 
   @Test
@@ -81,7 +83,7 @@ class DefaultPromptExecutionServiceTest {
   void shouldRetryWithDirectResponseWhenFirstOutputIsToolTraceNoise() {
     AtomicInteger invocationCount = new AtomicInteger();
     AtomicReference<String> retryPrompt = new AtomicReference<>("");
-    PromptCommandExecutor commandExecutor = (prompt, path) -> {
+    PromptCommandExecutor commandExecutor = prompt -> {
       int currentInvocation = invocationCount.incrementAndGet();
       if (currentInvocation == 1) {
         return new CopilotExecutionOutput(rawToolTraceOutput(), "",
@@ -117,7 +119,7 @@ class DefaultPromptExecutionServiceTest {
 
   private DefaultPromptExecutionService serviceForOutput(String output,
       boolean evolutionaryMode) {
-    PromptCommandExecutor commandExecutor = (prompt, path) ->
+    PromptCommandExecutor commandExecutor = prompt ->
       new CopilotExecutionOutput(output, "", PromptExecutionStatus.SUCCESS);
     return serviceForExecutor(commandExecutor, evolutionaryMode);
     }
@@ -130,7 +132,7 @@ class DefaultPromptExecutionServiceTest {
         (repo, outDir, centralizedPath, name, content, overwrite) ->
             Path.of(repo, outDir, name);
     DocumentationProperties properties = new DocumentationProperties("docs", "", true,
-        evolutionaryMode);
+      evolutionaryMode);
     RepositoryCommitResolver commitResolver = path -> Optional.of("abc123");
     return new DefaultPromptExecutionService(resolver, commandExecutor, markdownService,
         persistence, properties, commitResolver);
@@ -176,7 +178,8 @@ class DefaultPromptExecutionServiceTest {
 
   private PromptExecutionRequest request() {
     return new PromptExecutionRequest("prompt-1", "repository-agent", "/tmp/repo",
-        DocumentTemplateType.ERROR_MANUAL, "base prompt", Map.of("commitHash", "fallback"));
+      DocumentTemplateType.TECHNICAL_DOCUMENTATION,
+      "base prompt", Map.of("commitHash", "fallback"));
   }
 
   private static final class TestMarkdownService implements MarkdownDocumentService {

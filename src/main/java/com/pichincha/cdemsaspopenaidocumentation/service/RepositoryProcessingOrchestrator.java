@@ -5,5 +5,6 @@ import com.pichincha.cdemsaspopenaidocumentation.domain.RepositoryCloneResponse;
 
 public interface RepositoryProcessingOrchestrator {
 
-  RepositoryCloneResponse process(RepositoryCloneRequest request);
+  RepositoryCloneResponse process(RepositoryCloneRequest request, boolean generateDocumentation,
+      String templateId);
 }

@@ -24,10 +24,11 @@ public class TemporalRepositoryProcessingOrchestrator implements RepositoryProce
   }
 
   @Override
-  public RepositoryCloneResponse process(RepositoryCloneRequest request) {
+  public RepositoryCloneResponse process(RepositoryCloneRequest request,
+      boolean generateDocumentation, String templateId) {
     RepositoryProcessingWorkflow workflow = workflowClient.newWorkflowStub(
         RepositoryProcessingWorkflow.class, workflowOptions(request));
-    return workflow.process(request);
+    return workflow.process(request, generateDocumentation, templateId);
   }
 
   private WorkflowOptions workflowOptions(RepositoryCloneRequest request) {

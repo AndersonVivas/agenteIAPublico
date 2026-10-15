@@ -1,7 +1,9 @@
 package com.pichincha.cdemsaspopenaidocumentation.helper;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.pichincha.cdemsaspopenaidocumentation.config.GitCloneProperties;
 import com.pichincha.cdemsaspopenaidocumentation.domain.CommandExecutionResult;
@@ -10,6 +12,7 @@ import com.pichincha.cdemsaspopenaidocumentation.domain.RepositoryCloneResult;
 import com.pichincha.cdemsaspopenaidocumentation.exception.RepositoryCloneException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -17,11 +20,21 @@ import org.junit.jupiter.api.Test;
 class GitRepositoryClonerTest {
 
   @Test
+  void shouldUseUpdatedDefaultCloneDirectory() {
+    GitCloneProperties properties = new GitCloneProperties("https://dev.azure.com",
+      "avivaspa", "test-pat", null, false, null);
+
+    assertEquals(Path.of(System.getProperty("user.home"), "Documents",
+      "iniciativaIADocumentación", "repositoriosAnalizados"),
+      properties.cloneDirectory());
+  }
+
+  @Test
   void cloneRepositoryShouldBuildGitCloneCommand() throws Exception {
     Path cloneDirectory = Files.createTempDirectory("git-clone-test");
     CapturingGitCommandExecutor executor = new CapturingGitCommandExecutor();
     GitCloneProperties properties = new GitCloneProperties("https://dev.azure.com",
-      "avivaspa", "test-pat", cloneDirectory, false);
+      "avivaspa", "test-pat", cloneDirectory, false, Duration.ofSeconds(10));
     GitRepositoryCloner cloner = new GitRepositoryCloner(properties, executor);
 
     RepositoryCloneResult result = cloner.cloneRepository(
@@ -43,13 +56,16 @@ class GitRepositoryClonerTest {
       .resolve("taa-serviciosadministrativos")
       .resolve("sad-mna-logistica-del-efectivo")
       .toString(), result.localPath());
+    assertTrue(Files.exists(cloneDirectory.resolve("BancoPichinchaEC")
+      .resolve("taa-serviciosadministrativos")));
+    assertFalse(Files.exists(Path.of(result.localPath())));
   }
 
   @Test
   void cloneRepositoryShouldFailWhenBaseUrlIsMissing() throws Exception {
     Path cloneDirectory = Files.createTempDirectory("git-clone-test");
     GitRepositoryCloner cloner = new GitRepositoryCloner(new GitCloneProperties("",
-      "avivaspa", "test-pat", cloneDirectory, false),
+      "avivaspa", "test-pat", cloneDirectory, false, Duration.ofSeconds(10)),
       new CapturingGitCommandExecutor());
 
     assertThrows(RepositoryCloneException.class,
@@ -62,7 +78,7 @@ class GitRepositoryClonerTest {
     Path cloneDirectory = Files.createTempDirectory("git-clone-test");
     CapturingGitCommandExecutor executor = new CapturingGitCommandExecutor();
     GitCloneProperties properties = new GitCloneProperties("dev.azure.com", "", "",
-      cloneDirectory, false);
+      cloneDirectory, false, Duration.ofSeconds(10));
     GitRepositoryCloner cloner = new GitRepositoryCloner(properties, executor);
 
     cloner.cloneRepository(new RepositoryCloneRequest("BancoPichinchaEC",
@@ -78,7 +94,8 @@ class GitRepositoryClonerTest {
     private Path workingDirectory;
 
     @Override
-    public CommandExecutionResult execute(List<String> command, Path workingDirectory) {
+    public CommandExecutionResult execute(List<String> command, Path workingDirectory,
+      Duration timeout) {
       this.command = List.copyOf(command);
       this.workingDirectory = workingDirectory;
       return new CommandExecutionResult(0, "ok");

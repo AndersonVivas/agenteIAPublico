@@ -11,7 +11,6 @@ import com.pichincha.cdemsaspopenaidocumentation.copilot.strategy.ArchitectureDo
 import com.pichincha.cdemsaspopenaidocumentation.copilot.strategy.ChangelogDocumentTypeStrategy;
 import com.pichincha.cdemsaspopenaidocumentation.copilot.strategy.CodeDocumentationDocumentTypeStrategy;
 import com.pichincha.cdemsaspopenaidocumentation.copilot.strategy.DeploymentGuideDocumentTypeStrategy;
-import com.pichincha.cdemsaspopenaidocumentation.copilot.strategy.ErrorManualDocumentTypeStrategy;
 import com.pichincha.cdemsaspopenaidocumentation.copilot.strategy.ReadmeDocumentTypeStrategy;
 import com.pichincha.cdemsaspopenaidocumentation.copilot.strategy.TechnicalDocumentationDocumentTypeStrategy;
 import com.pichincha.cdemsaspopenaidocumentation.copilot.strategy.TechnicalSpecificationDocumentTypeStrategy;
@@ -88,7 +87,6 @@ class DefaultMarkdownDocumentServiceTest {
 
   private DefaultMarkdownDocumentService service() {
     return new DefaultMarkdownDocumentService(List.of(
-        new ErrorManualDocumentTypeStrategy(),
         new ApiDocumentationDocumentTypeStrategy(),
         new TechnicalDocumentationDocumentTypeStrategy(),
         new ReadmeDocumentTypeStrategy(),

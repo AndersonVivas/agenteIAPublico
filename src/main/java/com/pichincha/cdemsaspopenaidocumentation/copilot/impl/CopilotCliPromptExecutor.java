@@ -7,12 +7,15 @@ import com.pichincha.cdemsaspopenaidocumentation.copilot.domain.PromptExecutionS
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -30,9 +33,15 @@ public class CopilotCliPromptExecutor implements PromptCommandExecutor {
   }
 
   @Override
-  public CopilotExecutionOutput execute(String prompt, Path workingDirectory) {
+  public CopilotExecutionOutput execute(String prompt) {
+    return execute(prompt, "");
+  }
+
+  @Override
+  public CopilotExecutionOutput execute(String prompt, String model) {
+    Path isolatedDirectory = createIsolatedDirectory();
     try {
-      Process process = startProcess(prompt, workingDirectory);
+      Process process = startProcess(prompt, model, isolatedDirectory);
       try (ExecutorService executor = java.util.concurrent.Executors
           .newVirtualThreadPerTaskExecutor()) {
         Future<String> stdout = executor.submit(() -> read(process.getInputStream()));
@@ -53,15 +62,27 @@ public class CopilotCliPromptExecutor implements PromptCommandExecutor {
     } catch (IllegalStateException exception) {
       return new CopilotExecutionOutput("", exception.getMessage(),
           PromptExecutionStatus.FAILED);
+    } finally {
+      deleteDirectoryQuietly(isolatedDirectory);
     }
   }
 
-  private Process startProcess(String prompt, Path workingDirectory) {
+  private Path createIsolatedDirectory() {
+    try {
+      return Files.createTempDirectory("copilot-execution");
+    } catch (IOException exception) {
+      throw new IllegalStateException("Failed to create isolated execution directory.",
+          exception);
+    }
+  }
+
+  private Process startProcess(String prompt, String model, Path workingDirectory) {
     StringBuilder failures = new StringBuilder();
     for (String candidate : commandCandidates()) {
-      List<String> command = buildPromptCommand(candidate, prompt);
+      List<String> command = buildPromptCommand(candidate, prompt, model);
       ProcessBuilder builder = new ProcessBuilder(command);
       builder.directory(workingDirectory.toFile());
+      hardenEnvironment(builder.environment());
       try {
         return builder.start();
       } catch (IOException exception) {
@@ -73,11 +94,21 @@ public class CopilotCliPromptExecutor implements PromptCommandExecutor {
         + failures);
   }
 
-  private List<String> buildPromptCommand(String commandName, String prompt) {
+  private void hardenEnvironment(java.util.Map<String, String> environment) {
+    environment.remove("GIT_DIR");
+    environment.remove("GIT_WORK_TREE");
+    environment.remove("PWD");
+  }
+
+  private List<String> buildPromptCommand(String commandName, String prompt, String model) {
     List<String> command = new ArrayList<>();
     command.add(commandName);
     command.addAll(properties.arguments());
     command.add(prompt);
+    if (StringUtils.isNotBlank(model)) {
+      command.add("--model");
+      command.add(model);
+    }
     return command;
   }
 
@@ -128,6 +159,20 @@ public class CopilotCliPromptExecutor implements PromptCommandExecutor {
       return future.get(50, TimeUnit.MILLISECONDS);
     } catch (Exception ignored) {
       return "";
+    }
+  }
+
+  private void deleteDirectoryQuietly(Path directory) {
+    try (Stream<Path> walk = Files.walk(directory)) {
+      walk.sorted(Comparator.reverseOrder()).forEach(this::deletePathQuietly);
+    } catch (IOException ignored) {
+    }
+  }
+
+  private void deletePathQuietly(Path path) {
+    try {
+      Files.deleteIfExists(path);
+    } catch (IOException ignored) {
     }
   }
 }

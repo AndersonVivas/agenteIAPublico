@@ -14,8 +14,8 @@ public class GitRepositoryCommitResolver implements RepositoryCommitResolver {
 
   @Override
   public Optional<String> resolveCommitHash(Path repositoryPath) {
-    ProcessBuilder builder = new ProcessBuilder(List.of("git", "rev-parse", "HEAD"));
-    builder.directory(repositoryPath.toFile());
+    ProcessBuilder builder = new ProcessBuilder(List.of("git", "-C",
+        repositoryPath.toString(), "rev-parse", "HEAD"));
     builder.redirectErrorStream(true);
     try {
       Process process = builder.start();
