@@ -4,6 +4,9 @@ import java.nio.file.Path;
 
 public interface DocumentPersistenceService {
 
-  Path save(String repositoryPath, String outputDirectory, String centralizedOutputPath,
-      String documentName, String content, boolean overwriteExisting);
+  /**
+   * Writes the content to a path relative to the documentation output root and returns the
+   * absolute location of the written file.
+   */
+  Path save(Path relativePath, String content);
 }

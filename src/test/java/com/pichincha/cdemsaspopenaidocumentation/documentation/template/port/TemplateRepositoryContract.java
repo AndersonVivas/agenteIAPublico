@@ -1,20 +1,12 @@
 package com.pichincha.cdemsaspopenaidocumentation.documentation.template.port;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.pichincha.cdemsaspopenaidocumentation.documentation.audience.domain
-  .AudienceType;
-import com.pichincha.cdemsaspopenaidocumentation.documentation.audience.service
-  .AudienceProfileResolver;
-import com.pichincha.cdemsaspopenaidocumentation.documentation.communication.domain
-  .NarrativeStyle;
-import com.pichincha.cdemsaspopenaidocumentation.documentation.communication.service
-  .CommunicationProfileResolver;
+import com.pichincha.cdemsaspopenaidocumentation.documentation.audience.domain.AudienceType;
+import com.pichincha.cdemsaspopenaidocumentation.documentation.communication.domain.NarrativeStyle;
 import com.pichincha.cdemsaspopenaidocumentation.documentation.template.domain.DocumentTemplate;
 import com.pichincha.cdemsaspopenaidocumentation.documentation.template.domain.TemplateMetadata;
-import com.pichincha.cdemsaspopenaidocumentation.documentation.template.domain.TemplateResolutionResult;
 import com.pichincha.cdemsaspopenaidocumentation.documentation.template.domain.TemplateVersion;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -24,66 +16,36 @@ abstract class TemplateRepositoryContract {
   protected abstract TemplateRepository repository();
 
   @Test
-  void shouldResolveActiveTemplate() {
-    TemplateRepository repository = repository();
+  void shouldResolveActiveTemplateWithHighestVersion() {
+    DocumentTemplate template = repository().resolveActive("error-manual").orElseThrow();
 
-    TemplateResolutionResult result = repository.resolveActive("error-manual")
-        .orElseThrow();
-
-    assertEquals("error-manual", result.template().id());
-    assertFalse(result.fallbackApplied());
-  }
-
-  @Test
-  void shouldResolveTemplateByVersion() {
-    TemplateRepository repository = repository();
-
-    TemplateResolutionResult result = repository.resolveVersion("error-manual",
-        new TemplateVersion("1.0.0")).orElseThrow();
-
-    assertEquals("1.0.0", result.resolvedVersion().value());
+    assertEquals("error-manual", template.id());
+    assertEquals("1.1.0", template.version().value());
   }
 
   @Test
   void shouldReturnEmptyWhenTemplateDoesNotExist() {
-    TemplateRepository repository = repository();
-
-    assertTrue(repository.resolveActive("unknown-template").isEmpty());
-    assertTrue(repository.resolveVersion("unknown-template",
-        new TemplateVersion("9.9.9")).isEmpty());
+    assertTrue(repository().resolveActive("unknown-template").isEmpty());
   }
 
   @Test
-  void shouldSearchTemplatesByName() {
-    TemplateRepository repository = repository();
-
-    List<TemplateResolutionResult> results = repository.searchByName("manual");
-
-    assertFalse(results.isEmpty());
-    assertTrue(results.stream().allMatch(result ->
-        "Error Manual".equals(result.template().name())));
+  void shouldListActiveTemplateIds() {
+    assertEquals(List.of("error-manual"), repository().activeTemplateIds());
   }
 
   @Test
   void shouldResolveDefaultAudienceFromActiveTemplate() {
-    TemplateRepository repository = repository();
-    AudienceProfileResolver resolver = new AudienceProfileResolver();
+    DocumentTemplate template = repository().resolveActive("error-manual").orElseThrow();
 
-    AudienceType resolvedType = resolver.resolveFromRepository(repository,
-        "error-manual", null).orElseThrow().resolvedType();
-
-    assertEquals(AudienceType.OPERATIONS, resolvedType);
+    assertEquals(AudienceType.OPERATIONS, template.reader().audience().audienceType());
   }
 
   @Test
   void shouldResolveCommunicationProfileFromActiveTemplate() {
-    TemplateRepository repository = repository();
-    CommunicationProfileResolver resolver = new CommunicationProfileResolver();
+    DocumentTemplate template = repository().resolveActive("error-manual").orElseThrow();
 
-    NarrativeStyle style = resolver.resolveFromRepository(repository,
-        "error-manual", null).orElseThrow().narrativeStyle();
-
-    assertEquals(NarrativeStyle.OPERATIONAL, style);
+    assertEquals(NarrativeStyle.OPERATIONAL,
+        template.reader().communication().narrativeStyle());
   }
 
   protected DocumentTemplate template(String id, String name, String version) {

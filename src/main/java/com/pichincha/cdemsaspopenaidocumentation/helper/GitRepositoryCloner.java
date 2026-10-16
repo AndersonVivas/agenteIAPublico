@@ -1,79 +1,67 @@
 package com.pichincha.cdemsaspopenaidocumentation.helper;
 
 import com.pichincha.cdemsaspopenaidocumentation.config.GitCloneProperties;
-import com.pichincha.cdemsaspopenaidocumentation.domain.RepositoryCloneRequest;
 import com.pichincha.cdemsaspopenaidocumentation.domain.RepositoryCloneResult;
+import com.pichincha.cdemsaspopenaidocumentation.domain.ScanCommand;
 import com.pichincha.cdemsaspopenaidocumentation.exception.RepositoryCloneException;
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Comparator;
 import java.util.List;
-import org.apache.commons.lang3.StringUtils;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+@Slf4j
 @Component
+@RequiredArgsConstructor
 public class GitRepositoryCloner {
+
+  private static final String PULL_REQUEST_MERGE_REF = "refs/pull/%d/merge";
 
   private final GitCloneProperties properties;
   private final GitCommandExecutor commandExecutor;
+  private final WorkspaceDirectoryHelper workspaceDirectoryHelper;
 
-  public GitRepositoryCloner(GitCloneProperties properties,
-      GitCommandExecutor commandExecutor) {
-    this.properties = properties;
-    this.commandExecutor = commandExecutor;
+  public RepositoryCloneResult cloneRepository(ScanCommand command) {
+    Path directory = workspaceDirectoryHelper.prepare(command.repository(), command.scanId());
+    run(List.of("git", "clone", "--depth", "1",
+        properties.repositoryUrl(command.repository()), directory.toString()),
+        directory.getParent());
+    boolean pullRequestResolved = checkoutPullRequest(command.pullRequestId(), directory);
+    String checkedOutRef = pullRequestResolved
+        ? PULL_REQUEST_MERGE_REF.formatted(command.pullRequestId()) : currentBranch(directory);
+    return new RepositoryCloneResult(directory, headCommit(directory), checkedOutRef,
+        pullRequestResolved);
   }
 
-  public RepositoryCloneResult cloneRepository(RepositoryCloneRequest request) {
-    validateBaseUrl();
-    Path targetDirectory = properties.repositoryDirectory(request.organization(),
-        request.projectName(), request.repositoryName());
-    prepareTargetDirectory(targetDirectory);
-    executeClone(request, targetDirectory);
-    return RepositoryCloneResult.cloned(request.repositoryName(), request.pullRequestId(),
-        targetDirectory);
+  public void release(RepositoryCloneResult cloneResult) {
+    workspaceDirectoryHelper.delete(cloneResult.localPath());
   }
 
-  private void executeClone(RepositoryCloneRequest request, Path targetDirectory) {
-    List<String> command = List.of("git", "clone",
-        properties.repositoryUrl(request.organization(), request.projectName(),
-            request.repositoryName()),
-        targetDirectory.toString());
-    commandExecutor.execute(command, properties.cloneDirectory(), properties.cloneTimeout());
-  }
-
-  private void prepareTargetDirectory(Path targetDirectory) {
+  private boolean checkoutPullRequest(Long pullRequestId, Path directory) {
+    if (pullRequestId == null) {
+      return false;
+    }
     try {
-      if (Files.exists(targetDirectory) && !properties.overwriteExisting()) {
-        throw new RepositoryCloneException("Target directory already exists: " + targetDirectory);
-      }
-      deleteIfNeeded(targetDirectory);
-      Files.createDirectories(targetDirectory.getParent());
-    } catch (IOException exception) {
-      throw new RepositoryCloneException("Unable to prepare repository directory.", exception);
+      run(List.of("git", "fetch", "--depth", "1", "origin",
+          PULL_REQUEST_MERGE_REF.formatted(pullRequestId)), directory);
+      run(List.of("git", "checkout", "--detach", "FETCH_HEAD"), directory);
+      return true;
+    } catch (RepositoryCloneException exception) {
+      log.warn("Pull request {} merge ref is not available, scanning the default branch: {}",
+          pullRequestId, exception.getMessage());
+      return false;
     }
   }
 
-  private void deleteIfNeeded(Path targetDirectory) throws IOException {
-    if (!Files.exists(targetDirectory) || !properties.overwriteExisting()) {
-      return;
-    }
-    Files.walk(targetDirectory)
-        .sorted(Comparator.reverseOrder())
-        .forEach(GitRepositoryCloner::deleteSilently);
+  private String currentBranch(Path directory) {
+    return run(List.of("git", "rev-parse", "--abbrev-ref", "HEAD"), directory).trim();
   }
 
-  private static void deleteSilently(Path path) {
-    try {
-      Files.deleteIfExists(path);
-    } catch (IOException exception) {
-      throw new RepositoryCloneException("Unable to clean repository directory.", exception);
-    }
+  private String headCommit(Path directory) {
+    return run(List.of("git", "rev-parse", "HEAD"), directory).trim();
   }
 
-  private void validateBaseUrl() {
-    if (StringUtils.isBlank(properties.baseUrl())) {
-      throw new RepositoryCloneException("app.git.base-url must be configured.");
-    }
+  private String run(List<String> command, Path workingDirectory) {
+    return commandExecutor.execute(command, workingDirectory, properties.cloneTimeout());
   }
 }

@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.pichincha.cdemsaspopenaidocumentation.documentation.config.DocumentationTemplatesProperties;
 import com.pichincha.cdemsaspopenaidocumentation.documentation.template.domain.RawTemplateDescriptor;
-import com.pichincha.cdemsaspopenaidocumentation.documentation.template.domain.TemplateSourceType;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -31,8 +30,7 @@ class FileSystemTemplateSourceTest {
     List<RawTemplateDescriptor> descriptors = source.listAvailable();
 
     assertEquals(3, descriptors.size());
-    assertTrue(descriptors.stream().allMatch(descriptor ->
-        descriptor.sourceType() == TemplateSourceType.FILE_SYSTEM));
+    assertTrue(descriptors.stream().noneMatch(descriptor -> descriptor.checksum().isBlank()));
     assertTrue(descriptors.stream().anyMatch(descriptor ->
         descriptor.templateId().equals("error-manual")
             && descriptor.declaredVersion().value().equals("1.2.0")));

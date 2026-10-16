@@ -1,6 +1,5 @@
 package com.pichincha.cdemsaspopenaidocumentation.helper;
 
-import com.pichincha.cdemsaspopenaidocumentation.domain.CommandExecutionResult;
 import com.pichincha.cdemsaspopenaidocumentation.exception.RepositoryCloneException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -17,7 +16,7 @@ import org.springframework.stereotype.Component;
 public class DefaultGitCommandExecutor implements GitCommandExecutor {
 
   @Override
-  public CommandExecutionResult execute(List<String> command, Path workingDirectory,
+  public String execute(List<String> command, Path workingDirectory,
       Duration timeout) {
     ProcessBuilder processBuilder = new ProcessBuilder(command);
     processBuilder.directory(workingDirectory.toFile());
@@ -29,7 +28,7 @@ public class DefaultGitCommandExecutor implements GitCommandExecutor {
       if (exitCode != 0) {
         throw new RepositoryCloneException(buildMessage(command, output));
       }
-      return new CommandExecutionResult(exitCode, output);
+      return output;
     } catch (IOException exception) {
       throw new RepositoryCloneException("Unable to execute git command.", exception);
     } catch (InterruptedException exception) {
@@ -59,7 +58,7 @@ public class DefaultGitCommandExecutor implements GitCommandExecutor {
 
   private static String buildMessage(List<String> command, String output) {
     return "Git command failed: " + redactCredentials(String.join(" ", command))
-        + " -> " + output.trim();
+        + " -> " + redactCredentials(output.trim());
   }
 
   private static String redactCredentials(String value) {

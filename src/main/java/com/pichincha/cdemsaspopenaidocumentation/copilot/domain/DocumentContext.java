@@ -1,44 +1,33 @@
 package com.pichincha.cdemsaspopenaidocumentation.copilot.domain;
 
 import com.pichincha.cdemsaspopenaidocumentation.documentation.rendering.domain.RenderingPlan;
-import com.pichincha.cdemsaspopenaidocumentation.knowledge.domain.ProjectKnowledgeBase;
+import com.pichincha.cdemsaspopenaidocumentation.documentation.rendering.domain.SectionContext;
+import com.pichincha.cdemsaspopenaidocumentation.documentation.template.domain.DocumentTemplate;
+import com.pichincha.cdemsaspopenaidocumentation.domain.enums.DocumentLifecycleEnum;
 import java.util.List;
-import org.apache.commons.lang3.StringUtils;
+import java.util.Objects;
 
 public record DocumentContext(
-    String documentId,
-    DocumentTemplateType templateType,
     DocumentationGenerationContext generationContext,
-    ProjectKnowledgeBase knowledgeBase,
-    ResolvedTemplateContext resolvedTemplateContext,
+    DocumentTemplate template,
     OutputContract outputContract,
     RenderingPlan renderingPlan,
-    DocumentProvenance documentProvenance,
-    List<String> warnings) {
+    List<DocumentationSkill> skills,
+    String renderSignature) {
 
   public DocumentContext {
-    documentId = StringUtils.defaultString(documentId).trim();
-    if (templateType == null) {
-      throw new IllegalArgumentException("Template type is required.");
-    }
-    if (generationContext == null) {
-      throw new IllegalArgumentException("Generation context is required.");
-    }
-    if (knowledgeBase == null) {
-      throw new IllegalArgumentException("Knowledge base is required.");
-    }
-    if (resolvedTemplateContext == null) {
-      throw new IllegalArgumentException("Resolved template context is required.");
-    }
-    if (outputContract == null) {
-      throw new IllegalArgumentException("Output contract is required.");
-    }
-    if (renderingPlan == null) {
-      throw new IllegalArgumentException("Rendering plan is required.");
-    }
-    if (documentProvenance == null) {
-      throw new IllegalArgumentException("Document provenance is required.");
-    }
-    warnings = warnings == null ? List.of() : List.copyOf(warnings);
+    Objects.requireNonNull(generationContext, "Generation context is required.");
+    Objects.requireNonNull(template, "Template is required.");
+    Objects.requireNonNull(outputContract, "Output contract is required.");
+    Objects.requireNonNull(renderingPlan, "Rendering plan is required.");
+    skills = skills == null ? List.of() : List.copyOf(skills);
+  }
+
+  public DocumentLifecycleEnum lifecycle() {
+    return template.guidance().lifecycle();
+  }
+
+  public List<SectionContext> sections() {
+    return renderingPlan.sectionContexts();
   }
 }

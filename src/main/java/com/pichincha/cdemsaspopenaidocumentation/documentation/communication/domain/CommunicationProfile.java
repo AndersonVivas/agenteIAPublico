@@ -1,7 +1,6 @@
 package com.pichincha.cdemsaspopenaidocumentation.documentation.communication.domain;
 
 import com.pichincha.cdemsaspopenaidocumentation.documentation.audience.domain.AudienceType;
-import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.commons.lang3.StringUtils;
@@ -33,55 +32,61 @@ public record CommunicationProfile(
     forbiddenTerms = normalizeTerms(forbiddenTerms);
   }
 
-  public static CommunicationProfile defaultProfile() {
-    return defaultsByAudience().get(AudienceType.OPERATIONS);
+  public static Map<AudienceType, CommunicationProfile> defaultsByAudience() {
+    return Map.of(AudienceType.OPERATIONS, operations(),
+        AudienceType.FUNCTIONAL_USERS, functionalUsers(),
+        AudienceType.DEVELOPERS, developers(),
+        AudienceType.ARCHITECTS, architects(),
+        AudienceType.SRE, sre(),
+        AudienceType.SECURITY, security());
   }
 
-  public static Map<AudienceType, CommunicationProfile> defaultsByAudience() {
-    Map<AudienceType, CommunicationProfile> defaults =
-        new EnumMap<>(AudienceType.class);
-    defaults.put(AudienceType.OPERATIONS, new CommunicationProfile(
-        "operations-default", NarrativeStyle.OPERATIONAL,
+  private static CommunicationProfile operations() {
+    return new CommunicationProfile("operations-default", NarrativeStyle.OPERATIONAL,
         PresentationMode.STEP_BY_STEP, ReadingLevel.OPERATIONAL,
-        TechnicalAbstractionLevel.BALANCED,
-        TerminologyPolicy.TRANSLATED_TECHNICAL, "es",
+        TechnicalAbstractionLevel.BALANCED, TerminologyPolicy.TRANSLATED_TECHNICAL, "es",
         List.of("impact", "symptom", "action"),
-        List.of("throws", "catches", "handler internals")));
-    defaults.put(AudienceType.FUNCTIONAL_USERS, new CommunicationProfile(
-        "functional-default", NarrativeStyle.BUSINESS_IMPACT,
+        List.of("throws", "catches", "handler internals"));
+  }
+
+  private static CommunicationProfile functionalUsers() {
+    return new CommunicationProfile("functional-default", NarrativeStyle.BUSINESS_IMPACT,
         PresentationMode.SUMMARY_FIRST, ReadingLevel.FUNCTIONAL,
-        TechnicalAbstractionLevel.TRANSLATED,
-        TerminologyPolicy.BUSINESS_FRIENDLY, "es",
+        TechnicalAbstractionLevel.TRANSLATED, TerminologyPolicy.BUSINESS_FRIENDLY, "es",
         List.of("business process", "user impact", "service disruption"),
-        List.of("FeignClient", "handler", "stack trace")));
-    defaults.put(AudienceType.DEVELOPERS, new CommunicationProfile(
-        "developers-default", NarrativeStyle.IMPLEMENTATION_GUIDANCE,
-        PresentationMode.CATALOG, ReadingLevel.TECHNICAL,
-        TechnicalAbstractionLevel.EXPLICIT,
+        List.of("FeignClient", "handler", "stack trace"));
+  }
+
+  private static CommunicationProfile developers() {
+    return new CommunicationProfile("developers-default",
+        NarrativeStyle.IMPLEMENTATION_GUIDANCE, PresentationMode.CATALOG,
+        ReadingLevel.TECHNICAL, TechnicalAbstractionLevel.EXPLICIT,
         TerminologyPolicy.ENGINEERING_PRECISE, "en",
         List.of("timeout", "configuration", "implementation"),
-        List.of("business-only narrative")));
-    defaults.put(AudienceType.ARCHITECTS, new CommunicationProfile(
-        "architects-default", NarrativeStyle.ARCHITECTURAL_ASSESSMENT,
-        PresentationMode.RISK_MATRIX, ReadingLevel.EXPERT,
-        TechnicalAbstractionLevel.BALANCED, TerminologyPolicy.MIXED, "en",
+        List.of("business-only narrative"));
+  }
+
+  private static CommunicationProfile architects() {
+    return new CommunicationProfile("architects-default",
+        NarrativeStyle.ARCHITECTURAL_ASSESSMENT, PresentationMode.RISK_MATRIX,
+        ReadingLevel.EXPERT, TechnicalAbstractionLevel.BALANCED, TerminologyPolicy.MIXED, "en",
         List.of("resilience", "technical debt", "cross-cutting risk"),
-        List.of("step-by-step operator script")));
-    defaults.put(AudienceType.SRE, new CommunicationProfile(
-        "sre-default", NarrativeStyle.DIAGNOSTIC,
+        List.of("step-by-step operator script"));
+  }
+
+  private static CommunicationProfile sre() {
+    return new CommunicationProfile("sre-default", NarrativeStyle.DIAGNOSTIC,
         PresentationMode.STEP_BY_STEP, ReadingLevel.EXPERT,
-        TechnicalAbstractionLevel.EXPLICIT,
-        TerminologyPolicy.TRANSLATED_TECHNICAL, "en",
+        TechnicalAbstractionLevel.EXPLICIT, TerminologyPolicy.TRANSLATED_TECHNICAL, "en",
         List.of("reliability", "recovery", "observability"),
-        List.of("business-only framing")));
-    defaults.put(AudienceType.SECURITY, new CommunicationProfile(
-        "security-default", NarrativeStyle.AUDIT,
+        List.of("business-only framing"));
+  }
+
+  private static CommunicationProfile security() {
+    return new CommunicationProfile("security-default", NarrativeStyle.AUDIT,
         PresentationMode.RISK_MATRIX, ReadingLevel.EXPERT,
-        TechnicalAbstractionLevel.EXPLICIT,
-        TerminologyPolicy.ENGINEERING_PRECISE, "en",
-        List.of("exposure", "control", "risk"),
-        List.of("non-security detail")));
-    return Map.copyOf(defaults);
+        TechnicalAbstractionLevel.EXPLICIT, TerminologyPolicy.ENGINEERING_PRECISE, "en",
+        List.of("exposure", "control", "risk"), List.of("non-security detail"));
   }
 
   private static List<String> normalizeTerms(List<String> values) {

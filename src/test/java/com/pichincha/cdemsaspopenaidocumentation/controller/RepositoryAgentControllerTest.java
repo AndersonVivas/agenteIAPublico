@@ -6,54 +6,49 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.pichincha.cdemsaspopenaidocumentation.domain.RepositoryCloneRequest;
 import com.pichincha.cdemsaspopenaidocumentation.domain.RepositoryCloneResponse;
-import com.pichincha.cdemsaspopenaidocumentation.domain.RepositoryCloneResult;
 import com.pichincha.cdemsaspopenaidocumentation.service.RepositoryProcessingOrchestrator;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
 class RepositoryAgentControllerTest {
 
   @Test
-  void cloneRepositoryShouldDelegateToOrchestratorWithDefaultTemplate() {
+  void cloneRepositoryShouldDelegateRequestedTemplatesToOrchestrator() {
+    AtomicReference<RepositoryCloneRequest> capturedRequest = new AtomicReference<>();
     AtomicReference<Boolean> capturedFlag = new AtomicReference<>();
-    AtomicReference<String> capturedTemplateId = new AtomicReference<>();
-    RepositoryProcessingOrchestrator orchestrator = (request, generateDocumentation,
-        templateId) -> {
+    RepositoryProcessingOrchestrator orchestrator = (request, generateDocumentation) -> {
+      capturedRequest.set(request);
       capturedFlag.set(generateDocumentation);
-      capturedTemplateId.set(templateId);
-      return RepositoryCloneResponse.direct(
-          new RepositoryCloneResult(request.repositoryName(), request.pullRequestId(),
-              "/tmp/sample-repo", "CLONED"), null);
+      return new RepositoryCloneResponse(request.repositoryName(), request.pullRequestId(),
+          "workflow-1", null, List.of());
     };
-    RepositoryAgentController controller = new RepositoryAgentController(orchestrator);
 
-    RepositoryCloneResponse response = controller.cloneRepository(
-        new RepositoryCloneRequest("BancoPichinchaEC", "taa-serviciosadministrativos",
-            "sample-repo", 42L), true).getBody();
+    RepositoryCloneResponse response = new RepositoryAgentController(orchestrator)
+        .cloneRepository(request(List.of("error-manual")), true).getBody();
 
     assertEquals("sample-repo", response.repositoryName());
     assertEquals(42L, response.pullRequestId());
-    assertEquals("DIRECT", response.orchestrationMode());
     assertTrue(capturedFlag.get());
-    assertEquals("error-manual", capturedTemplateId.get());
+    assertEquals(List.of("error-manual"), capturedRequest.get().templateIds());
   }
 
   @Test
   void cloneRepositoryShouldForwardGenerateDocumentationFlagWhenDisabled() {
     AtomicReference<Boolean> capturedFlag = new AtomicReference<>();
-    RepositoryProcessingOrchestrator orchestrator = (request, generateDocumentation,
-        templateId) -> {
+    RepositoryProcessingOrchestrator orchestrator = (request, generateDocumentation) -> {
       capturedFlag.set(generateDocumentation);
-      return RepositoryCloneResponse.direct(
-          new RepositoryCloneResult(request.repositoryName(), request.pullRequestId(),
-              "/tmp/sample-repo", "CLONED"), null);
+      return new RepositoryCloneResponse(request.repositoryName(), request.pullRequestId(),
+          "workflow-1", null, List.of());
     };
-    RepositoryAgentController controller = new RepositoryAgentController(orchestrator);
 
-    controller.cloneRepository(
-        new RepositoryCloneRequest("BancoPichinchaEC", "taa-serviciosadministrativos",
-            "sample-repo", 42L), false);
+    new RepositoryAgentController(orchestrator).cloneRepository(request(null), false);
 
     assertFalse(capturedFlag.get());
+  }
+
+  private RepositoryCloneRequest request(List<String> templateIds) {
+    return new RepositoryCloneRequest("BancoPichinchaEC", "taa-serviciosadministrativos",
+        "sample-repo", 42L, templateIds, false);
   }
 }

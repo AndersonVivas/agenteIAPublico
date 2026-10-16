@@ -4,13 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.pichincha.cdemsaspopenaidocumentation.domain.CodeScanSummary;
 import com.pichincha.cdemsaspopenaidocumentation.domain.CodeSignalEvidence;
-import com.pichincha.cdemsaspopenaidocumentation.domain.ScanExecutionMetadata;
 import com.pichincha.cdemsaspopenaidocumentation.knowledge.domain.ProjectKnowledgeBase;
-import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class DefaultKnowledgeProjectionServiceTest {
@@ -28,14 +24,13 @@ class DefaultKnowledgeProjectionServiceTest {
         "DEP_HTTP", "implementation 'org.springframework..." , "low");
     CodeSignalEvidence monitoring = evidence("mon-1", "CONFIGURATION",
         "application.yml", "ACTUATOR_HEALTH", "management.health.readiness", "medium");
-    CodeScanSummary summary = summary(List.of(api, duplicateApi, exception, dependency,
-        monitoring));
+    List<CodeSignalEvidence> evidences = List.of(api, duplicateApi, exception, dependency,
+        monitoring);
 
-    ProjectKnowledgeBase kb1 = service.project(summary, List.of());
-    ProjectKnowledgeBase kb2 = service.project(summary, List.of());
+    ProjectKnowledgeBase kb1 = service.project(evidences);
+    ProjectKnowledgeBase kb2 = service.project(evidences);
 
     assertEquals(kb1, kb2);
-    assertEquals(4, kb1.evidenceIndex().size());
     assertEquals(1, kb1.apiKnowledge().findings().size());
     assertEquals(1, kb1.exceptionKnowledge().findings().size());
     assertEquals(1, kb1.dependencyKnowledge().findings().size());
@@ -51,9 +46,9 @@ class DefaultKnowledgeProjectionServiceTest {
         "DEP_TIMEOUT", "timeout", "high");
     CodeSignalEvidence low = evidence("dep-2", "DEPENDENCY", "build.gradle",
         "DEP_TIMEOUT", "timeout", "low");
-    CodeScanSummary summary = summary(List.of(high, low));
+    List<CodeSignalEvidence> evidences = List.of(high, low);
 
-    ProjectKnowledgeBase kb = service.project(summary, List.of());
+    ProjectKnowledgeBase kb = service.project(evidences);
 
     assertEquals(1, kb.knowledgeConflicts().size());
     assertTrue(kb.knowledgeConflicts().get(0).description().toLowerCase()
@@ -118,31 +113,32 @@ class DefaultKnowledgeProjectionServiceTest {
                 "@GetMapping /payments", "high");
         CodeSignalEvidence exception = evidence("ex-1", "EXCEPTION", "ErrorHandler.java",
                 "EX_HANDLER", "@ExceptionHandler", "medium");
-        CodeScanSummary summary = summary(List.of(api, exception));
+        List<CodeSignalEvidence> evidences = List.of(api, exception);
 
-        ProjectKnowledgeBase kb = service.project(summary, List.of(api, exception));
+        ProjectKnowledgeBase kb = service.project(evidences);
 
-        assertEquals(2, kb.evidenceIndex().size());
         assertEquals(1, kb.apiKnowledge().findings().size());
         assertEquals(1, kb.exceptionKnowledge().findings().size());
     }
 
+  @Test
+  void shouldProjectServicePurposeStatementsAsBusinessKnowledge() {
+    CodeSignalEvidence readme = evidence("biz-1", "BUSINESS_CONTEXT", "README.md",
+        "SERVICE_PURPOSE_STATEMENT", "Registers customer payments", "low");
+
+    ProjectKnowledgeBase kb = new DefaultKnowledgeProjectionService().project(List.of(readme));
+
+    assertEquals(1, kb.businessKnowledge().findings().size());
+    assertTrue(kb.configurationKnowledge().findings().isEmpty());
+  }
+
     private void assertMonitoringClassification(CodeSignalEvidence evidence) {
         DefaultKnowledgeProjectionService service = new DefaultKnowledgeProjectionService();
-        ProjectKnowledgeBase kb = service.project(summary(List.of(evidence)), List.of());
+        ProjectKnowledgeBase kb = service.project(List.of(evidence));
 
         assertEquals(1, kb.monitoringKnowledge().findings().size());
         assertTrue(kb.configurationKnowledge().findings().isEmpty());
     }
-
-  private CodeScanSummary summary(List<CodeSignalEvidence> evidences) {
-    ScanExecutionMetadata metadata = new ScanExecutionMetadata("fp", false, "", "",
-        "FULL", "2.0", "2.2", 10L, 1L, 0L, 1L, 1L, 1L, 1L, 1L, evidences.size(),
-        100L);
-    return new CodeScanSummary("scan-1", "fp", Instant.now(), 5, 2, 1, 1, 2,
-        Map.of("java", 2L, "yaml", 1L), Map.of("java", 2L, "yml", 1L), List.of(),
-        List.of(), List.of(), evidences, metadata);
-  }
 
   private CodeSignalEvidence evidence(String id, String signalType, String path,
       String ruleId, String matchText, String severity) {

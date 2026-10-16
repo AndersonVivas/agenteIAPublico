@@ -1,69 +1,72 @@
 package com.pichincha.cdemsaspopenaidocumentation.workflow.impl;
 
-import com.pichincha.cdemsaspopenaidocumentation.activity.CloneRepositoryActivity;
 import com.pichincha.cdemsaspopenaidocumentation.activity.GenerateDocumentationActivity;
 import com.pichincha.cdemsaspopenaidocumentation.activity.ScanRepositoryActivity;
-import com.pichincha.cdemsaspopenaidocumentation.copilot.domain.DocumentationGenerationContext;
-import com.pichincha.cdemsaspopenaidocumentation.copilot.domain.PromptExecutionResult;
-import com.pichincha.cdemsaspopenaidocumentation.domain.CodeScanSummary;
-import com.pichincha.cdemsaspopenaidocumentation.domain.RepositoryCloneRequest;
+import com.pichincha.cdemsaspopenaidocumentation.domain.DocumentGenerationResult;
+import com.pichincha.cdemsaspopenaidocumentation.domain.DocumentationGenerationRequest;
+import com.pichincha.cdemsaspopenaidocumentation.domain.DocumentationRunRequest;
 import com.pichincha.cdemsaspopenaidocumentation.domain.RepositoryCloneResponse;
-import com.pichincha.cdemsaspopenaidocumentation.domain.RepositoryCloneResult;
+import com.pichincha.cdemsaspopenaidocumentation.domain.ScanCommand;
+import com.pichincha.cdemsaspopenaidocumentation.domain.ScanExecutionSummary;
+import com.pichincha.cdemsaspopenaidocumentation.workflow.RepositoryProcessingWorkflow;
 import io.temporal.activity.ActivityOptions;
 import io.temporal.common.RetryOptions;
+import io.temporal.failure.ActivityFailure;
+import io.temporal.failure.ApplicationFailure;
 import io.temporal.workflow.Workflow;
 import java.time.Duration;
+import org.slf4j.Logger;
 
-public class RepositoryProcessingWorkflowImpl implements
-    com.pichincha.cdemsaspopenaidocumentation.workflow.RepositoryProcessingWorkflow {
+public class RepositoryProcessingWorkflowImpl implements RepositoryProcessingWorkflow {
 
-  private final CloneRepositoryActivity cloneRepositoryActivity = Workflow.newActivityStub(
-      CloneRepositoryActivity.class, cloneActivityOptions());
+  private static final Logger LOGGER = Workflow.getLogger(RepositoryProcessingWorkflowImpl.class);
+
   private final ScanRepositoryActivity scanRepositoryActivity = Workflow.newActivityStub(
       ScanRepositoryActivity.class, scanActivityOptions());
   private final GenerateDocumentationActivity generateDocumentationActivity = Workflow
-      .newActivityStub(GenerateDocumentationActivity.class, generateDocumentationActivityOptions());
+      .newActivityStub(GenerateDocumentationActivity.class, generateDocumentationOptions());
 
   @Override
-  public RepositoryCloneResponse process(RepositoryCloneRequest request,
-      boolean generateDocumentation, String templateId) {
-    RepositoryCloneResult cloneResult = cloneRepositoryActivity.cloneRepository(request);
-    CodeScanSummary scanSummary = scanRepositoryActivity.scanRepository(
-        cloneResult.localPath());
-    RepositoryCloneResponse response = RepositoryCloneResponse.temporal(cloneResult,
-        Workflow.getInfo().getWorkflowId(), scanSummary);
-    if (!generateDocumentation) {
+  public RepositoryCloneResponse process(DocumentationRunRequest request) {
+    ScanExecutionSummary scan = scanRepositoryActivity.scanRepository(new ScanCommand(
+        Workflow.randomUUID().toString(), request.repository(), request.pullRequestId(),
+        request.forceFullScan()));
+    RepositoryCloneResponse response = RepositoryCloneResponse.scanned(request,
+        Workflow.getInfo().getWorkflowId(), scan);
+    if (!request.generateDocumentation()) {
       return response;
     }
-    PromptExecutionResult executionResult = generateDocumentationActivity.generateDocumentation(
-        buildDocumentationContext(request, cloneResult, scanSummary), templateId);
-    return response.withPromptExecutionResult(executionResult);
+    return response.withDocuments(request.templateIds().stream()
+        .map(templateId -> generate(scan.scanId(), templateId)).toList());
   }
 
-  private DocumentationGenerationContext buildDocumentationContext(RepositoryCloneRequest request,
-      RepositoryCloneResult cloneResult, CodeScanSummary scanSummary) {
-    return new DocumentationGenerationContext(scanSummary.scanId(), request.repositoryName(),
-        cloneResult.localPath(), request.organization(), request.projectName(),
-        request.pullRequestId(), scanSummary);
+  private DocumentGenerationResult generate(String scanId, String templateId) {
+    try {
+      return generateDocumentationActivity.generateDocumentation(
+          new DocumentationGenerationRequest(scanId, templateId));
+    } catch (ActivityFailure failure) {
+      LOGGER.warn("Documentation for template {} failed", templateId, failure);
+      return DocumentGenerationResult.failed(templateId, rootMessage(failure));
+    }
   }
 
-  private static ActivityOptions cloneActivityOptions() {
-    return ActivityOptions.newBuilder()
-        .setStartToCloseTimeout(Duration.ofMinutes(10))
-        .setRetryOptions(RetryOptions.newBuilder().setMaximumAttempts(3).build())
-        .build();
+  private static String rootMessage(Throwable failure) {
+    Throwable cause = failure;
+    while (cause.getCause() != null) {
+      cause = cause.getCause();
+    }
+    return cause instanceof ApplicationFailure applicationFailure
+        ? applicationFailure.getOriginalMessage() : cause.getMessage();
   }
 
   private static ActivityOptions scanActivityOptions() {
     return ActivityOptions.newBuilder()
-        .setStartToCloseTimeout(Duration.ofMinutes(5))
-        .setRetryOptions(RetryOptions.newBuilder().setMaximumAttempts(2).build())
+        .setStartToCloseTimeout(Duration.ofMinutes(30))
+        .setRetryOptions(RetryOptions.newBuilder().setMaximumAttempts(3).build())
         .build();
   }
 
-  private static ActivityOptions generateDocumentationActivityOptions() {
-    // Multiple sequential Copilot CLI calls (specialists + consolidation + render);
-    // a single attempt avoids duplicate, costly LLM executions on failure.
+  private static ActivityOptions generateDocumentationOptions() {
     return ActivityOptions.newBuilder()
         .setStartToCloseTimeout(Duration.ofMinutes(45))
         .setRetryOptions(RetryOptions.newBuilder().setMaximumAttempts(1).build())

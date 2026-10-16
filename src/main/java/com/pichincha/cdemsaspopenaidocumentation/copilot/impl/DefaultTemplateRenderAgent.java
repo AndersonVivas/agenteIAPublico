@@ -1,7 +1,5 @@
 package com.pichincha.cdemsaspopenaidocumentation.copilot.impl;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pichincha.cdemsaspopenaidocumentation.copilot.PromptCommandExecutor;
 import com.pichincha.cdemsaspopenaidocumentation.copilot.PromptRegistryService;
 import com.pichincha.cdemsaspopenaidocumentation.copilot.TemplateRenderAgent;
@@ -9,45 +7,44 @@ import com.pichincha.cdemsaspopenaidocumentation.copilot.config.DocumentationAge
 import com.pichincha.cdemsaspopenaidocumentation.copilot.domain.AgentFinding;
 import com.pichincha.cdemsaspopenaidocumentation.copilot.domain.ConsolidatedKnowledge;
 import com.pichincha.cdemsaspopenaidocumentation.copilot.domain.CopilotExecutionOutput;
+import com.pichincha.cdemsaspopenaidocumentation.copilot.domain.DocumentContext;
 import com.pichincha.cdemsaspopenaidocumentation.copilot.domain.OutputContract;
 import com.pichincha.cdemsaspopenaidocumentation.copilot.domain.PromptExecutionStatus;
 import com.pichincha.cdemsaspopenaidocumentation.copilot.domain.TemplateRenderRequest;
 import com.pichincha.cdemsaspopenaidocumentation.copilot.exception.AgentExecutionException;
-import com.pichincha.cdemsaspopenaidocumentation.copilot.support.JsonResponseExtractor;
+import com.pichincha.cdemsaspopenaidocumentation.copilot.support.ChangeContextFormatter;
+import com.pichincha.cdemsaspopenaidocumentation.copilot.support.GlobalRulesPromptFormatter;
 import com.pichincha.cdemsaspopenaidocumentation.copilot.support.PromptPlaceholderRenderer;
+import com.pichincha.cdemsaspopenaidocumentation.copilot.support.ReaderProfilePromptFormatter;
+import com.pichincha.cdemsaspopenaidocumentation.copilot.support.SectionBodyResponseParser;
 import com.pichincha.cdemsaspopenaidocumentation.copilot.support.SectionContextPromptFormatter;
+import com.pichincha.cdemsaspopenaidocumentation.copilot.support.SkillPromptFormatter;
 import com.pichincha.cdemsaspopenaidocumentation.documentation.rendering.domain.SectionContext;
-import java.util.LinkedHashMap;
-import java.util.List;
+import com.pichincha.cdemsaspopenaidocumentation.domain.RepositoryCoordinates;
+import com.pichincha.cdemsaspopenaidocumentation.util.HashUtil;
 import java.util.Map;
-import java.util.Set;
-import org.apache.commons.lang3.StringUtils;
+import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 /**
  * Produces the final Markdown body for the impacted sections only, driven entirely by the
- * rendering plan's {@code SectionContext} list (title, objective, narrative intent,
- * presentation mode, highlights and traceability warnings) plus the consolidated structured
+ * rendering plan's {@code SectionContext} list (title, objective, instructions, presentation
+ * mode, highlights and traceability warnings), the reader profile, the writing skills and
+ * global rules of the template, the change context of the scan and the consolidated structured
  * knowledge. This is the only agent in the pipeline allowed to emit Markdown.
  */
 @Service
+@RequiredArgsConstructor
 public class DefaultTemplateRenderAgent implements TemplateRenderAgent {
 
   private static final String PROMPT_ID = "template-render-agent";
   private static final String AGENT_LABEL = "template-render";
-  private static final ObjectMapper MAPPER = new ObjectMapper();
+  private static final String NO_FINDINGS = "- No hay hallazgos consolidados disponibles.";
 
   private final PromptRegistryService promptRegistryService;
   private final PromptCommandExecutor promptCommandExecutor;
   private final DocumentationAgentsProperties agentsProperties;
-
-  public DefaultTemplateRenderAgent(PromptRegistryService promptRegistryService,
-      PromptCommandExecutor promptCommandExecutor,
-      DocumentationAgentsProperties agentsProperties) {
-    this.promptRegistryService = promptRegistryService;
-    this.promptCommandExecutor = promptCommandExecutor;
-    this.agentsProperties = agentsProperties;
-  }
 
   @Override
   public Map<String, String> render(TemplateRenderRequest request) {
@@ -56,66 +53,56 @@ public class DefaultTemplateRenderAgent implements TemplateRenderAgent {
     }
     String template = promptRegistryService.loadPrompt(PROMPT_ID);
     String prompt = PromptPlaceholderRenderer.render(template, placeholders(request));
-    String model = agentsProperties.renderer().model();
-    CopilotExecutionOutput output = promptCommandExecutor.execute(prompt, model);
+    CopilotExecutionOutput output = promptCommandExecutor.execute(prompt,
+        agentsProperties.renderer().model());
     if (output.status() != PromptExecutionStatus.SUCCESS) {
       throw new AgentExecutionException(AGENT_LABEL, "Template Render Copilot CLI call "
           + "failed: " + output.stderr());
     }
-    return parseResult(output.stdout(), request.impactedSections());
+    return SectionBodyResponseParser.parse(output.stdout(), request.impactedSections().stream()
+        .map(SectionContext::sectionId).collect(Collectors.toSet()), AGENT_LABEL);
+  }
+
+  @Override
+  public String renderSignature() {
+    return HashUtil.sha256Hex(promptRegistryService.loadPrompt(PROMPT_ID) + "|"
+        + agentsProperties.renderer().model());
   }
 
   private Map<String, String> placeholders(TemplateRenderRequest request) {
-    OutputContract contract = request.outputContract();
-    return Map.of(
-        "repositoryName", request.generationContext().repositoryName(),
-        "organization", request.generationContext().organization(),
-        "projectName", request.generationContext().projectName(),
-        "templateName", request.resolvedTemplateContext().template().name(),
-        "outputLanguage", contract.outputLanguage(),
-        "missingDataMessage", contract.missingDataMessage(),
-        "sections", SectionContextPromptFormatter.format(request.impactedSections()),
-        "consolidatedFindings", formatFindings(request.consolidatedKnowledge()));
+    DocumentContext context = request.documentContext();
+    RepositoryCoordinates repository = context.generationContext().repository();
+    OutputContract contract = context.outputContract();
+    return Map.ofEntries(
+        Map.entry("repositoryName", repository.repositoryName()),
+        Map.entry("organization", repository.organization()),
+        Map.entry("projectName", repository.projectName()),
+        Map.entry("templateName", context.template().name()),
+        Map.entry("documentLifecycle", context.lifecycle().name()),
+        Map.entry("outputLanguage", contract.outputLanguage()),
+        Map.entry("missingDataMessage", contract.missingDataMessage()),
+        Map.entry("globalRules", GlobalRulesPromptFormatter.format(contract.rules())),
+        Map.entry("readerProfile",
+            ReaderProfilePromptFormatter.format(context.template().reader())),
+        Map.entry("skills", SkillPromptFormatter.format(context.skills())),
+        Map.entry("changeContext", ChangeContextFormatter.format(context.generationContext())),
+        Map.entry("sections", SectionContextPromptFormatter.format(request.impactedSections())),
+        Map.entry("consolidatedFindings", formatFindings(request.consolidatedKnowledge())));
   }
 
   private String formatFindings(ConsolidatedKnowledge knowledge) {
-    List<AgentFinding> findings = knowledge.findings();
-    if (findings.isEmpty()) {
-      return "- No hay hallazgos consolidados disponibles.";
+    if (knowledge.findings().isEmpty()) {
+      return NO_FINDINGS;
     }
-    StringBuilder builder = new StringBuilder();
-    for (AgentFinding finding : findings) {
-      builder.append("- [").append(finding.findingId()).append("] ").append(finding.title())
-          .append(" | negocio: ").append(finding.businessSummary())
-          .append(" | tecnico: ").append(finding.technicalSummary())
-          .append(" | severidad: ").append(finding.severity())
-          .append(" | evidencia: ").append(String.join(",", finding.evidenceIds()))
-          .append('\n');
-    }
-    return builder.toString().trim();
+    return knowledge.findings().stream().map(this::formatFinding)
+        .collect(Collectors.joining("\n"));
   }
 
-  private Map<String, String> parseResult(String rawOutput, List<SectionContext> impacted) {
-    try {
-      String json = JsonResponseExtractor.extractObject(rawOutput);
-      Map<String, String> raw = MAPPER.readValue(json, new TypeReference<>() { });
-      return filterToImpacted(raw, impacted);
-    } catch (RuntimeException | java.io.IOException exception) {
-      throw new AgentExecutionException(AGENT_LABEL,
-          "Unable to parse rendered Markdown JSON response.", exception);
-    }
-  }
-
-  private Map<String, String> filterToImpacted(Map<String, String> raw,
-      List<SectionContext> impacted) {
-    Set<String> impactedIds = impacted.stream().map(SectionContext::sectionId)
-        .collect(java.util.stream.Collectors.toSet());
-    Map<String, String> result = new LinkedHashMap<>();
-    raw.forEach((sectionId, markdown) -> {
-      if (impactedIds.contains(sectionId) && StringUtils.isNotBlank(markdown)) {
-        result.put(sectionId, markdown.trim());
-      }
-    });
-    return Map.copyOf(result);
+  private String formatFinding(AgentFinding finding) {
+    return "- [" + finding.findingId() + "] " + finding.title()
+        + " | negocio: " + finding.businessSummary()
+        + " | tecnico: " + finding.technicalSummary()
+        + " | severidad: " + finding.severity()
+        + " | evidencia: " + String.join(",", finding.evidenceIds());
   }
 }

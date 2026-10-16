@@ -1,0 +1,80 @@
+id: pr-change-history
+name: Historial de Cambios del Pull Request
+version: 1.0.0
+status: active
+lifecycle: HISTORICAL
+skills:
+  - lenguaje-claro
+  - trazabilidad-discreta
+description: >
+  Registro fechado e inmutable de lo que cambio en el repositorio en una ejecucion (normalmente
+  un pull request), construido unicamente con la evidencia nueva o modificada en ese escaneo.
+
+globalRules:
+  - Describe solo lo que cambio en este escaneo; no describas el sistema completo.
+  - Usa unicamente la evidencia y el contexto de cambio provistos.
+  - Preserva exactamente endpoints, clases, excepciones, claves de configuracion y rutas.
+  - Si no hay evidencia para una seccion, escribe exactamente el mensaje de datos faltantes.
+  - Cita los ids de evidencia que respaldan cada cambio en la seccion Evidencia del Cambio.
+
+outputContract:
+  missingInformationText: Sin cambios evidenciados en este escaneo.
+
+sections:
+  - id: summary
+    title: Resumen del Cambio
+    objective: >
+      Explain in a few lines what changed in this scan, its likely purpose and which areas of
+      the service are affected, using the change context and the new evidence.
+    required: true
+    order: 1
+    instructions:
+      - Start with the analyzed revision and the number of changed files.
+      - Summarize the change in at most five bullets.
+
+  - id: api-changes
+    title: Cambios en APIs y Contratos
+    objective: >
+      Describe new or modified endpoints, clients and API contracts introduced by the change.
+    required: true
+    order: 2
+    instructions:
+      - List each endpoint or client with its evidence id.
+      - State whether it looks new or modified when the change context allows it.
+
+  - id: dependency-changes
+    title: Cambios en Dependencias e Integraciones
+    objective: >
+      Describe new or modified external dependencies, integrations and data stores.
+    required: true
+    order: 3
+
+  - id: configuration-changes
+    title: Cambios de Configuracion
+    objective: >
+      Describe configuration keys, timeouts, retries and environment references added or
+      modified by the change.
+    required: true
+    order: 4
+
+  - id: error-handling-changes
+    title: Cambios en Manejo de Errores
+    objective: >
+      Describe new or modified exceptions, error handlers and failure paths.
+    required: true
+    order: 5
+
+  - id: risks
+    title: Riesgos y Validaciones Recomendadas
+    objective: >
+      Highlight operational risks introduced by the change and the validations recommended
+      before or after deploying it, only when supported by evidence.
+    required: true
+    order: 6
+
+  - id: evidence
+    title: Evidencia del Cambio
+    objective: >
+      Provide a compact index of the evidence ids used, grouped by section.
+    required: true
+    order: 7

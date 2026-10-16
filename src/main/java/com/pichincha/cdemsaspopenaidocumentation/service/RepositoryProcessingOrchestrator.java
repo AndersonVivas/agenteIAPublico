@@ -5,6 +5,9 @@ import com.pichincha.cdemsaspopenaidocumentation.domain.RepositoryCloneResponse;
 
 public interface RepositoryProcessingOrchestrator {
 
-  RepositoryCloneResponse process(RepositoryCloneRequest request, boolean generateDocumentation,
-      String templateId);
+  /**
+   * Runs the documentation workflow in Temporal for the repository: incremental scan of the
+   * pull request and, when requested, generation of every requested (or active) template.
+   */
+  RepositoryCloneResponse process(RepositoryCloneRequest request, boolean generateDocumentation);
 }

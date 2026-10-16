@@ -1,0 +1,17 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:it-${random.uuid};DB_CLOSE_DELAY=-1
+  h2:
+    console:
+      enabled: false
+app:
+  temporal:
+    task-queue: it-${random.uuid}
+documentation:
+  home: ${java.io.tmpdir}/documentation-agent-it
+  templates:
+    path: iniciativaIADocumentación/templates
+  prompts:
+    path: iniciativaIADocumentación/prompts
+  skills:
+    path: iniciativaIADocumentación/skills

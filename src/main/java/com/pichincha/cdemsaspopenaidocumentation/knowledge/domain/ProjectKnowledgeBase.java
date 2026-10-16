@@ -2,22 +2,19 @@ package com.pichincha.cdemsaspopenaidocumentation.knowledge.domain;
 
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Stream;
 
 public record ProjectKnowledgeBase(
-    RepositoryKnowledgeContext repositoryContext,
     ApiKnowledge apiKnowledge,
     ExceptionKnowledge exceptionKnowledge,
     DependencyKnowledge dependencyKnowledge,
     ConfigurationKnowledge configurationKnowledge,
     MonitoringKnowledge monitoringKnowledge,
+    BusinessKnowledge businessKnowledge,
     List<KnowledgeGap> knowledgeGaps,
-    List<KnowledgeConflict> knowledgeConflicts,
-    Map<String, EvidenceRef> evidenceIndex) {
+    List<KnowledgeConflict> knowledgeConflicts) {
 
   public ProjectKnowledgeBase {
-    repositoryContext = repositoryContext == null ? emptyContext() : repositoryContext;
     apiKnowledge = apiKnowledge == null ? new ApiKnowledge(List.of()) : apiKnowledge;
     exceptionKnowledge = exceptionKnowledge == null
         ? new ExceptionKnowledge(List.of()) : exceptionKnowledge;
@@ -27,15 +24,16 @@ public record ProjectKnowledgeBase(
         ? new ConfigurationKnowledge(List.of()) : configurationKnowledge;
     monitoringKnowledge = monitoringKnowledge == null
         ? new MonitoringKnowledge(List.of()) : monitoringKnowledge;
+    businessKnowledge = businessKnowledge == null
+        ? new BusinessKnowledge(List.of()) : businessKnowledge;
     knowledgeGaps = orderedGaps(knowledgeGaps);
     knowledgeConflicts = orderedConflicts(knowledgeConflicts);
-    evidenceIndex = evidenceIndex == null ? Map.of() : Map.copyOf(evidenceIndex);
   }
 
   public List<KnowledgeFinding> allFindings() {
     return Stream.of(apiKnowledge.findings(), exceptionKnowledge.findings(),
         dependencyKnowledge.findings(), configurationKnowledge.findings(),
-        monitoringKnowledge.findings()).flatMap(List::stream)
+        monitoringKnowledge.findings(), businessKnowledge.findings()).flatMap(List::stream)
         .sorted(Comparator.comparing(KnowledgeFinding::findingId)).toList();
   }
 
@@ -52,10 +50,5 @@ public record ProjectKnowledgeBase(
     }
     return conflicts.stream().distinct()
         .sorted(Comparator.comparing(KnowledgeConflict::conflictId)).toList();
-  }
-
-  private static RepositoryKnowledgeContext emptyContext() {
-    return new RepositoryKnowledgeContext("", "", java.time.Instant.EPOCH, 0, 0,
-        0, Map.of(), Map.of());
   }
 }

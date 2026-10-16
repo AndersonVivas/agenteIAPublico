@@ -6,15 +6,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.pichincha.cdemsaspopenaidocumentation.documentation.template.domain.RawTemplateDescriptor;
 import com.pichincha.cdemsaspopenaidocumentation.documentation.template.domain.TemplateFormat;
-import com.pichincha.cdemsaspopenaidocumentation.documentation.template.domain.TemplateSourceType;
 import com.pichincha.cdemsaspopenaidocumentation.documentation.template.domain.TemplateVersion;
+import com.pichincha.cdemsaspopenaidocumentation.documentation.template.support.TemplateNodeReader;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.time.Instant;
 import java.util.HexFormat;
 import java.util.Optional;
 import java.util.regex.Pattern;
@@ -41,12 +40,12 @@ public class TemplateFileResolver {
       TemplateFormat format = format(path);
       JsonNode metadata = metadataNode(content, format).orElse(null);
       String sourceId = root.relativize(path).toString();
-      String templateId = text(metadata, "templateId", "id");
-      String templateName = text(metadata, "templateName", "name", "title");
-      TemplateVersion version = versionResolver.resolve(path, text(metadata, "version"));
+      String templateId = TemplateNodeReader.text(metadata, "templateId", "id");
+      String templateName = TemplateNodeReader.text(metadata, "templateName", "name", "title");
+      TemplateVersion version = versionResolver.resolve(path,
+          TemplateNodeReader.text(metadata, "version"));
       return Optional.of(new RawTemplateDescriptor(sourceId, templateId, templateName,
-          version, content, format, TemplateSourceType.FILE_SYSTEM,
-          path.toAbsolutePath().toString(), checksum(content), modifiedAt(path)));
+          version, content, format, checksum(content)));
     } catch (IOException exception) {
       return Optional.empty();
     }
@@ -78,19 +77,6 @@ public class TemplateFileResolver {
     return matcher.find() ? Optional.of(matcher.group(1)) : Optional.empty();
   }
 
-  private String text(JsonNode node, String... fields) {
-    if (node == null) {
-      return "";
-    }
-    for (String field : fields) {
-      String value = node.path(field).asText("").trim();
-      if (StringUtils.isNotBlank(value)) {
-        return value;
-      }
-    }
-    return "";
-  }
-
   private TemplateFormat format(Path path) {
     String fileName = path.getFileName().toString().toLowerCase();
     if (fileName.endsWith(".yaml") || fileName.endsWith(".yml")) {
@@ -112,14 +98,6 @@ public class TemplateFileResolver {
       return HexFormat.of().formatHex(value);
     } catch (NoSuchAlgorithmException exception) {
       return "";
-    }
-  }
-
-  private Instant modifiedAt(Path path) {
-    try {
-      return Files.getLastModifiedTime(path).toInstant();
-    } catch (IOException exception) {
-      return Instant.EPOCH;
     }
   }
 }

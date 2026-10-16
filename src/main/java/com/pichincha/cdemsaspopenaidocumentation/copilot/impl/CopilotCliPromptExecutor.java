@@ -6,64 +6,71 @@ import com.pichincha.cdemsaspopenaidocumentation.copilot.domain.CopilotExecution
 import com.pichincha.cdemsaspopenaidocumentation.copilot.domain.PromptExecutionStatus;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Comparator;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 
+@Slf4j
 @Component
+@RequiredArgsConstructor
 public class CopilotCliPromptExecutor implements PromptCommandExecutor {
 
+  private static final String PROMPT_ARGUMENT = "-p";
+  private static final List<String> ISOLATION_ARGUMENTS = List.of(
+      "--silent",
+      "--no-ask-user",
+      "--no-custom-instructions",
+      "--disable-builtin-mcps",
+      "--deny-tool=shell, write, read, url, memory");
+  private static final long OUTPUT_DRAIN_MILLIS = 50;
+
   private final CopilotCliProperties properties;
-
-  public CopilotCliPromptExecutor(CopilotCliProperties properties) {
-    this.properties = properties;
-  }
-
-  @Override
-  public CopilotExecutionOutput execute(String prompt) {
-    return execute(prompt, "");
-  }
 
   @Override
   public CopilotExecutionOutput execute(String prompt, String model) {
     Path isolatedDirectory = createIsolatedDirectory();
     try {
-      Process process = startProcess(prompt, model, isolatedDirectory);
-      try (ExecutorService executor = java.util.concurrent.Executors
-          .newVirtualThreadPerTaskExecutor()) {
-        Future<String> stdout = executor.submit(() -> read(process.getInputStream()));
-        Future<String> stderr = executor.submit(() -> read(process.getErrorStream()));
-        boolean finished = process.waitFor(properties.timeoutSeconds(), TimeUnit.SECONDS);
-        if (!finished) {
-          return timeoutResult(process, stdout, stderr);
-        }
-        return completedResult(process.exitValue(), stdout.get(), stderr.get());
-      }
+      return awaitCompletion(startProcess(prompt, model, isolatedDirectory));
     } catch (InterruptedException exception) {
       Thread.currentThread().interrupt();
-      return new CopilotExecutionOutput("", "Copilot CLI execution interrupted.",
-          PromptExecutionStatus.FAILED);
+      return failed("Copilot CLI execution interrupted.");
     } catch (ExecutionException exception) {
-      return new CopilotExecutionOutput("", "Failed to capture Copilot CLI output: "
-          + exception.getMessage(), PromptExecutionStatus.FAILED);
+      return failed("Failed to capture Copilot CLI output: " + exception.getMessage());
     } catch (IllegalStateException exception) {
-      return new CopilotExecutionOutput("", exception.getMessage(),
-          PromptExecutionStatus.FAILED);
+      return failed(exception.getMessage());
     } finally {
-      deleteDirectoryQuietly(isolatedDirectory);
+      deleteDirectory(isolatedDirectory);
+    }
+  }
+
+  private CopilotExecutionOutput awaitCompletion(Process process)
+      throws InterruptedException, ExecutionException {
+    try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+      Future<String> stdout = executor.submit(() -> read(process.getInputStream()));
+      Future<String> stderr = executor.submit(() -> read(process.getErrorStream()));
+      if (!process.waitFor(properties.timeoutSeconds(), TimeUnit.SECONDS)) {
+        return timeoutResult(process, stdout, stderr);
+      }
+      return completedResult(process.exitValue(), stdout.get(), stderr.get());
     }
   }
 
@@ -90,11 +97,10 @@ public class CopilotCliPromptExecutor implements PromptCommandExecutor {
             StringUtils.defaultIfBlank(exception.getMessage(), "unknown"));
       }
     }
-    throw new IllegalStateException("Unable to execute GitHub Copilot CLI. "
-        + failures);
+    throw new IllegalStateException("Unable to execute GitHub Copilot CLI. " + failures);
   }
 
-  private void hardenEnvironment(java.util.Map<String, String> environment) {
+  private void hardenEnvironment(Map<String, String> environment) {
     environment.remove("GIT_DIR");
     environment.remove("GIT_WORK_TREE");
     environment.remove("PWD");
@@ -103,7 +109,8 @@ public class CopilotCliPromptExecutor implements PromptCommandExecutor {
   private List<String> buildPromptCommand(String commandName, String prompt, String model) {
     List<String> command = new ArrayList<>();
     command.add(commandName);
-    command.addAll(properties.arguments());
+    command.addAll(ISOLATION_ARGUMENTS);
+    command.add(PROMPT_ARGUMENT);
     command.add(prompt);
     if (StringUtils.isNotBlank(model)) {
       command.add("--model");
@@ -121,58 +128,62 @@ public class CopilotCliPromptExecutor implements PromptCommandExecutor {
     return List.copyOf(candidates);
   }
 
-  private void appendFailure(StringBuilder failures, List<String> command,
-      String error) {
+  private void appendFailure(StringBuilder failures, List<String> command, String error) {
     if (!failures.isEmpty()) {
       failures.append(" | ");
     }
     failures.append("command='")
-        .append(command.stream().limit(7).collect(Collectors.joining(" ")))
-        .append("' cause='")
-        .append(StringUtils.defaultIfBlank(error, "unknown"))
-        .append("'");
+        .append(command.stream().limit(2).collect(Collectors.joining(" ")))
+        .append("' cause='").append(error).append("'");
   }
 
   private CopilotExecutionOutput timeoutResult(Process process, Future<String> stdout,
       Future<String> stderr) {
     process.destroyForcibly();
-    return new CopilotExecutionOutput(safeGet(stdout),
+    return new CopilotExecutionOutput(drain(stdout),
         "Execution timed out after " + properties.timeoutSeconds() + " seconds.\n"
-            + safeGet(stderr),
+            + drain(stderr),
         PromptExecutionStatus.TIMEOUT);
   }
 
-  private CopilotExecutionOutput completedResult(int exitCode, String stdout,
-      String stderr) {
+  private CopilotExecutionOutput completedResult(int exitCode, String stdout, String stderr) {
     PromptExecutionStatus status = exitCode == 0
         ? PromptExecutionStatus.SUCCESS : PromptExecutionStatus.FAILED;
     return new CopilotExecutionOutput(stdout, stderr, status);
   }
 
-  private String read(InputStream source) throws IOException {
-    byte[] bytes = source.readAllBytes();
-    return StringUtils.defaultString(new String(bytes, StandardCharsets.UTF_8));
+  private CopilotExecutionOutput failed(String message) {
+    return new CopilotExecutionOutput("", message, PromptExecutionStatus.FAILED);
   }
 
-  private String safeGet(Future<String> future) {
+  private String read(InputStream source) throws IOException {
+    return new String(source.readAllBytes(), StandardCharsets.UTF_8);
+  }
+
+  private String drain(Future<String> future) {
     try {
-      return future.get(50, TimeUnit.MILLISECONDS);
-    } catch (Exception ignored) {
+      return future.get(OUTPUT_DRAIN_MILLIS, TimeUnit.MILLISECONDS);
+    } catch (InterruptedException exception) {
+      Thread.currentThread().interrupt();
+      return "";
+    } catch (ExecutionException | TimeoutException exception) {
       return "";
     }
   }
 
-  private void deleteDirectoryQuietly(Path directory) {
+  private void deleteDirectory(Path directory) {
     try (Stream<Path> walk = Files.walk(directory)) {
-      walk.sorted(Comparator.reverseOrder()).forEach(this::deletePathQuietly);
-    } catch (IOException ignored) {
+      walk.sorted(Comparator.reverseOrder()).forEach(this::deletePath);
+    } catch (IOException | UncheckedIOException exception) {
+      log.warn("Unable to delete Copilot isolated directory {}", directory, exception);
     }
   }
 
-  private void deletePathQuietly(Path path) {
+  private void deletePath(Path path) {
     try {
       Files.deleteIfExists(path);
-    } catch (IOException ignored) {
+    } catch (IOException exception) {
+      throw new UncheckedIOException(exception);
     }
   }
 }

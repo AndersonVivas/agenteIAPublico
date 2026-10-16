@@ -1,17 +1,9 @@
 package com.pichincha.cdemsaspopenaidocumentation.documentation.template.domain;
 
-import com.pichincha.cdemsaspopenaidocumentation.documentation.audience.domain
-  .AudiencePolicy;
-import com.pichincha.cdemsaspopenaidocumentation.documentation.audience.domain
-  .AudienceProfile;
-import com.pichincha.cdemsaspopenaidocumentation.documentation.audience.domain
-  .AudienceType;
-import com.pichincha.cdemsaspopenaidocumentation.documentation.communication.domain
-  .CommunicationProfile;
+import com.pichincha.cdemsaspopenaidocumentation.documentation.audience.domain.AudienceType;
 import java.util.Comparator;
-import java.util.EnumMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Objects;
 import org.apache.commons.lang3.StringUtils;
 
 public record DocumentTemplate(
@@ -20,25 +12,18 @@ public record DocumentTemplate(
     TemplateVersion version,
     List<TemplateSection> sections,
     TemplateMetadata metadata,
-    AudiencePolicy audiencePolicy,
-    Map<AudienceType, AudienceProfile> audienceProfiles,
-    CommunicationProfile defaultCommunicationProfile,
-    Map<AudienceType, CommunicationProfile> communicationProfilesByAudience) {
+    TemplateGuidance guidance,
+    ReaderProfile reader) {
 
   public DocumentTemplate(String id, String name, TemplateVersion version,
       List<TemplateSection> sections, TemplateMetadata metadata) {
-    this(id, name, version, sections, metadata, AudiencePolicy.defaultPolicy(),
-        AudienceProfile.defaults(), CommunicationProfile.defaultProfile(),
-        CommunicationProfile.defaultsByAudience());
+    this(id, name, version, sections, metadata, TemplateGuidance.defaults());
   }
 
   public DocumentTemplate(String id, String name, TemplateVersion version,
-      List<TemplateSection> sections, TemplateMetadata metadata,
-      AudiencePolicy audiencePolicy,
-      Map<AudienceType, AudienceProfile> audienceProfiles) {
-    this(id, name, version, sections, metadata, audiencePolicy, audienceProfiles,
-        CommunicationProfile.defaultProfile(),
-        CommunicationProfile.defaultsByAudience());
+      List<TemplateSection> sections, TemplateMetadata metadata, TemplateGuidance guidance) {
+    this(id, name, version, sections, metadata, guidance,
+        ReaderProfile.defaultFor(AudienceType.OPERATIONS));
   }
 
   public DocumentTemplate {
@@ -47,50 +32,16 @@ public record DocumentTemplate(
     version = version == null ? TemplateVersion.initial() : version;
     sections = normalizeSections(sections);
     metadata = metadata == null ? TemplateMetadata.internal() : metadata;
-    audiencePolicy = audiencePolicy == null ? AudiencePolicy.defaultPolicy()
-      : audiencePolicy;
-    audienceProfiles = normalizeProfiles(audienceProfiles, audiencePolicy);
-    defaultCommunicationProfile = defaultCommunicationProfile == null
-      ? CommunicationProfile.defaultProfile() : defaultCommunicationProfile;
-    communicationProfilesByAudience = normalizeCommunicationProfiles(
-      communicationProfilesByAudience, defaultCommunicationProfile,
-      audiencePolicy);
+    guidance = guidance == null ? TemplateGuidance.defaults() : guidance;
+    reader = reader == null ? ReaderProfile.defaultFor(AudienceType.OPERATIONS) : reader;
   }
 
   private static List<TemplateSection> normalizeSections(List<TemplateSection> sections) {
     if (sections == null || sections.isEmpty()) {
       return List.of();
     }
-    return sections.stream().filter(section -> section != null).distinct()
+    return sections.stream().filter(Objects::nonNull).distinct()
         .sorted(Comparator.comparingInt(TemplateSection::order)
             .thenComparing(TemplateSection::id)).toList();
-  }
-
-  private static Map<AudienceType, AudienceProfile> normalizeProfiles(
-      Map<AudienceType, AudienceProfile> profiles, AudiencePolicy policy) {
-    Map<AudienceType, AudienceProfile> merged = new EnumMap<>(AudienceType.class);
-    merged.putAll(AudienceProfile.defaults());
-    if (profiles != null && !profiles.isEmpty()) {
-      merged.putAll(profiles);
-    }
-    policy.supportedAudiences().forEach(audienceType -> merged.putIfAbsent(audienceType,
-        AudienceProfile.defaults().get(audienceType)));
-    return Map.copyOf(merged);
-  }
-
-  private static Map<AudienceType, CommunicationProfile>
-      normalizeCommunicationProfiles(
-      Map<AudienceType, CommunicationProfile> profiles,
-      CommunicationProfile defaultProfile,
-      AudiencePolicy policy) {
-    Map<AudienceType, CommunicationProfile> merged =
-        new EnumMap<>(AudienceType.class);
-    merged.putAll(CommunicationProfile.defaultsByAudience());
-    if (profiles != null && !profiles.isEmpty()) {
-      merged.putAll(profiles);
-    }
-    policy.supportedAudiences().forEach(audienceType -> merged.putIfAbsent(
-        audienceType, defaultProfile));
-    return Map.copyOf(merged);
   }
 }

@@ -5,11 +5,8 @@ import com.pichincha.cdemsaspopenaidocumentation.documentation.rendering.domain.
 import com.pichincha.cdemsaspopenaidocumentation.documentation.template.domain.DocumentTemplate;
 import com.pichincha.cdemsaspopenaidocumentation.knowledge.domain.KnowledgeFinding;
 import com.pichincha.cdemsaspopenaidocumentation.knowledge.domain.ProjectKnowledgeBase;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 
@@ -17,25 +14,16 @@ import org.springframework.stereotype.Service;
 public class KnowledgeSelectionEngine {
 
   public SelectedKnowledge select(ProjectKnowledgeBase knowledgeBase,
-      DocumentTemplate template, AudienceProfile audienceProfile) {
+      DocumentTemplate template) {
     if (knowledgeBase == null) {
-      return new SelectedKnowledge(List.of(), List.of(), List.of(), List.of(), Map.of(),
+      return new SelectedKnowledge(List.of(), List.of(), List.of(),
           List.of("Knowledge base is empty."));
     }
-    List<KnowledgeFinding> selected = new ArrayList<>();
-    List<String> excluded = new ArrayList<>();
-    Map<String, String> reasons = new LinkedHashMap<>();
-    for (KnowledgeFinding finding : knowledgeBase.allFindings()) {
-      if (isRelevant(template, audienceProfile, finding)) {
-        selected.add(finding);
-        reasons.put(finding.findingId(), "selected-by-template-and-audience");
-      } else {
-        excluded.add(finding.findingId());
-        reasons.put(finding.findingId(), "excluded-by-template-or-audience");
-      }
-    }
+    List<KnowledgeFinding> selected = knowledgeBase.allFindings().stream()
+        .filter(finding -> isRelevant(template, template.reader().audience(), finding))
+        .toList();
     return new SelectedKnowledge(selected, knowledgeBase.knowledgeGaps(),
-        knowledgeBase.knowledgeConflicts(), excluded, reasons, List.of());
+        knowledgeBase.knowledgeConflicts(), List.of());
   }
 
   private boolean isRelevant(DocumentTemplate template, AudienceProfile audience,
@@ -43,7 +31,7 @@ public class KnowledgeSelectionEngine {
     if (isApiFocused(template) && !isApiOrDependency(finding)) {
       return false;
     }
-    if (audience == null || audience.excludedConcerns().isEmpty()) {
+    if (audience.excludedConcerns().isEmpty()) {
       return true;
     }
     String searchable = searchableText(finding);

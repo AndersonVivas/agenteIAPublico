@@ -1,12 +1,13 @@
 package com.pichincha.cdemsaspopenaidocumentation.activity;
 
-import com.pichincha.cdemsaspopenaidocumentation.copilot.domain.DocumentationGenerationContext;
-import com.pichincha.cdemsaspopenaidocumentation.copilot.domain.PromptExecutionResult;
+import com.pichincha.cdemsaspopenaidocumentation.domain.DocumentGenerationResult;
+import com.pichincha.cdemsaspopenaidocumentation.domain.DocumentationGenerationRequest;
+import io.temporal.activity.ActivityInterface;
 import io.temporal.activity.ActivityMethod;
 
+@ActivityInterface
 public interface GenerateDocumentationActivity {
 
   @ActivityMethod
-  PromptExecutionResult generateDocumentation(DocumentationGenerationContext context,
-      String templateId);
+  DocumentGenerationResult generateDocumentation(DocumentationGenerationRequest request);
 }

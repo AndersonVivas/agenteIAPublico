@@ -10,22 +10,28 @@ import com.pichincha.cdemsaspopenaidocumentation.documentation.template.domain.T
 import com.pichincha.cdemsaspopenaidocumentation.documentation.template.domain.TemplateMetadata;
 import com.pichincha.cdemsaspopenaidocumentation.documentation.template.domain.TemplateSection;
 import com.pichincha.cdemsaspopenaidocumentation.documentation.template.domain.TemplateValidationResult;
-import java.time.Instant;
+import com.pichincha.cdemsaspopenaidocumentation.documentation.template.support.TemplateKeyInspector;
+import com.pichincha.cdemsaspopenaidocumentation.documentation.template.support.TemplateNodeReader;
+import com.pichincha.cdemsaspopenaidocumentation.domain.enums.TemplateStatusEnum;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Pattern;
+import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class TemplateValidator {
 
   private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
   private static final ObjectMapper YAML_MAPPER = new ObjectMapper(new YAMLFactory());
   private static final Pattern FRONT_MATTER = Pattern.compile(
       "^---\\s*\\R(.*?)\\R---\\s*(?:\\R|$)", Pattern.DOTALL);
+
+  private final TemplateGuidanceParser guidanceParser;
+  private final TemplateReaderParser readerParser;
 
   public TemplateValidationResult validate(RawTemplateDescriptor descriptor) {
     List<String> errors = new ArrayList<>();
@@ -39,13 +45,21 @@ public class TemplateValidator {
     String templateName = normalizeTemplateName(descriptor, definition, templateId,
         warnings);
     validateDescriptor(descriptor, templateId, templateName, errors);
-    if (!errors.isEmpty()) {
-      return TemplateValidationResult.invalid(errors, warnings);
-    }
-    DocumentTemplate template = new DocumentTemplate(templateId, templateName,
-        descriptor.declaredVersion(), sections(descriptor, definition),
-        metadata(descriptor, definition));
-    return TemplateValidationResult.valid(template, warnings);
+    TemplateKeyInspector.unsupportedKeys(definition).forEach(key ->
+        warnings.add("Unsupported template key '" + key + "' is ignored."));
+    DocumentTemplate template = buildTemplate(descriptor, definition, templateId,
+        templateName, errors);
+    return errors.isEmpty() ? TemplateValidationResult.valid(template, warnings)
+        : TemplateValidationResult.invalid(errors, warnings);
+  }
+
+  private DocumentTemplate buildTemplate(RawTemplateDescriptor descriptor, JsonNode definition,
+      String templateId, String templateName, List<String> errors) {
+    TemplateMetadata metadata = new TemplateMetadata(descriptor.checksum(),
+        TemplateNodeReader.enumValue(definition, "status", TemplateStatusEnum.class, errors));
+    return new DocumentTemplate(templateId, templateName, descriptor.declaredVersion(),
+        sections(descriptor, definition), metadata, guidanceParser.parse(definition, errors),
+        readerParser.parse(definition, errors));
   }
 
   private JsonNode parseDefinition(RawTemplateDescriptor descriptor,
@@ -89,25 +103,13 @@ public class TemplateValidator {
     }
   }
 
-  private TemplateMetadata metadata(RawTemplateDescriptor descriptor,
-      JsonNode definition) {
-    Instant publishedAt = descriptor.lastModifiedAt();
-    List<String> tags = tags(definition);
-    Map<String, String> attributes = Map.of(
-        "sourceId", descriptor.sourceId(),
-        "format", descriptor.format().name(),
-        "checksum", descriptor.checksum());
-    return new TemplateMetadata(descriptor.sourceType().name().toLowerCase(),
-        descriptor.sourceReference(), publishedAt, tags, attributes);
-  }
-
   private String normalizeTemplateId(RawTemplateDescriptor descriptor,
       JsonNode definition,
       List<String> warnings) {
     if (StringUtils.isNotBlank(descriptor.templateId())) {
       return descriptor.templateId().trim();
     }
-    String metadataId = text(definition, "templateId", "id");
+    String metadataId = TemplateNodeReader.text(definition, "templateId", "id");
     if (StringUtils.isNotBlank(metadataId)) {
       warnings.add("Template id was resolved from template content.");
       return metadataId.trim();
@@ -121,7 +123,7 @@ public class TemplateValidator {
     if (StringUtils.isNotBlank(descriptor.templateName())) {
       return descriptor.templateName().trim();
     }
-    String metadataName = text(definition, "templateName", "name", "title");
+    String metadataName = TemplateNodeReader.text(definition, "templateName", "name", "title");
     if (StringUtils.isNotBlank(metadataName)) {
       warnings.add("Template name was resolved from template content.");
       return metadataName.trim();
@@ -160,11 +162,10 @@ public class TemplateValidator {
   }
 
   private TemplateSection toSection(JsonNode sectionNode, int fallbackOrder) {
-    String title = text(sectionNode, "title", "name");
-    String id = text(sectionNode, "id");
-    String objective = text(sectionNode, "objective", "description");
-    List<String> instructions = stringList(sectionNode == null
-        ? null : sectionNode.get("instructions"));
+    String title = TemplateNodeReader.text(sectionNode, "title", "name");
+    String id = TemplateNodeReader.text(sectionNode, "id");
+    String objective = TemplateNodeReader.text(sectionNode, "objective", "description");
+    List<String> instructions = TemplateNodeReader.stringList(sectionNode, "instructions");
     boolean required = sectionNode == null || !sectionNode.has("required")
         || sectionNode.get("required").asBoolean(true);
     int order = sectionNode == null ? fallbackOrder
@@ -210,39 +211,6 @@ public class TemplateValidator {
       return StringUtils.defaultString(content);
     }
     return StringUtils.defaultString(content).substring(matcher.end()).trim();
-  }
-
-  private List<String> tags(JsonNode definition) {
-    return stringList(definition == null ? null : definition.get("tags"));
-  }
-
-  private List<String> stringList(JsonNode node) {
-    if (node == null) {
-      return List.of();
-    }
-    if (node.isTextual()) {
-      return List.of(node.asText());
-    }
-    if (!node.isArray()) {
-      return List.of();
-    }
-    List<String> values = new ArrayList<>();
-    node.forEach(item -> values.add(item.asText()));
-    return values.stream().map(StringUtils::defaultString).map(String::trim)
-        .filter(StringUtils::isNotBlank).toList();
-  }
-
-  private String text(JsonNode node, String... fieldNames) {
-    if (node == null) {
-      return "";
-    }
-    for (String fieldName : fieldNames) {
-      String value = node.path(fieldName).asText("").trim();
-      if (StringUtils.isNotBlank(value)) {
-        return value;
-      }
-    }
-    return "";
   }
 
   private String sanitize(String sourceId) {

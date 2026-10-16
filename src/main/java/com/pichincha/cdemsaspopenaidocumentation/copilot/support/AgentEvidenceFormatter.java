@@ -2,25 +2,36 @@ package com.pichincha.cdemsaspopenaidocumentation.copilot.support;
 
 import com.pichincha.cdemsaspopenaidocumentation.domain.CodeSignalEvidence;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 
 /**
- * Renders a compact, token-efficient textual view of a partitioned evidence slice for
- * inclusion in a specialist agent prompt. Only the fields an agent needs to reason about
- * and cite back in {@code AgentFinding.evidenceIds} are included.
+ * Renders a compact textual view of a partitioned evidence slice for a specialist agent
+ * prompt: the matched line plus the surrounding code lines captured by the scanner, so the
+ * agent understands when and why the signal happens without reading the repository. The
+ * surrounding lines share a fixed character budget to keep prompts bounded.
  */
 public final class AgentEvidenceFormatter {
+
+  private static final String NO_EVIDENCE =
+      "- No se encontro evidencia para esta categoria en el escaneo estatico.";
+  private static final int CONTEXT_BUDGET_CHARS = 40_000;
+  private static final int MAX_CONTEXT_LINE_CHARS = 160;
+  private static final String CONTEXT_INDENT = "     ";
 
   private AgentEvidenceFormatter() {
   }
 
   public static String format(List<CodeSignalEvidence> evidence) {
     if (evidence == null || evidence.isEmpty()) {
-      return "- No se encontro evidencia para esta categoria en el escaneo estatico.";
+      return NO_EVIDENCE;
     }
     StringBuilder builder = new StringBuilder();
+    int remainingContext = CONTEXT_BUDGET_CHARS;
     for (int index = 0; index < evidence.size(); index++) {
-      builder.append(formatOne(index + 1, evidence.get(index))).append('\n');
+      String context = remainingContext > 0 ? context(evidence.get(index)) : "";
+      remainingContext -= context.length();
+      builder.append(formatOne(index + 1, evidence.get(index))).append(context).append('\n');
     }
     return builder.toString().trim();
   }
@@ -35,6 +46,30 @@ public final class AgentEvidenceFormatter {
         + " severidad:" + blank(item.severityHint()) + " confianza:"
         + String.format("%.2f", item.confidence()) + "\n   texto: " + blank(item.matchText())
         + tags;
+  }
+
+  private static String context(CodeSignalEvidence item) {
+    String matchPrefix = item.matchLine() + ":";
+    List<String> lines = item.snippet() == null ? List.of() : item.snippet().stream()
+        .filter(line -> !line.startsWith(matchPrefix))
+        .map(AgentEvidenceFormatter::compactLine)
+        .filter(StringUtils::isNotBlank)
+        .toList();
+    if (lines.isEmpty()) {
+      return "";
+    }
+    return "\n   contexto:\n" + lines.stream().map(line -> CONTEXT_INDENT + line)
+        .collect(Collectors.joining("\n"));
+  }
+
+  private static String compactLine(String snippetLine) {
+    int separator = snippetLine.indexOf(':');
+    String code = snippetLine.substring(separator + 1).strip();
+    if (code.isEmpty()) {
+      return "";
+    }
+    return StringUtils.abbreviate(snippetLine.substring(0, separator) + ": " + code,
+        MAX_CONTEXT_LINE_CHARS);
   }
 
   private static String blank(String value) {

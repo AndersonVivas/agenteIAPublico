@@ -1,13 +1,17 @@
 package com.pichincha.cdemsaspopenaidocumentation.copilot;
 
 import com.pichincha.cdemsaspopenaidocumentation.copilot.domain.ChangelogEntry;
+import java.nio.file.Path;
 
 /**
- * Records one execution's changes in a changelog that is kept separate from the main
- * generated document, as mandated by the evolutionary documentation strategy.
+ * Keeps the version history of every generated document and renders the changelog associated
+ * with evolutionary documents, separate from the document itself.
  */
 public interface ChangelogService {
 
-  void record(String repositoryPath, String outputDirectory, String centralizedOutputPath,
-      ChangelogEntry entry);
+  int nextVersion(String documentKey);
+
+  void record(ChangelogEntry entry);
+
+  void writeChangelog(String documentKey, Path changelogPath, String documentTitle);
 }

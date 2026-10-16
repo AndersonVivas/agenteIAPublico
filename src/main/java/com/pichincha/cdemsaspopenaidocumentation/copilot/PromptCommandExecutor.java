@@ -4,9 +4,5 @@ import com.pichincha.cdemsaspopenaidocumentation.copilot.domain.CopilotExecution
 
 public interface PromptCommandExecutor {
 
-  CopilotExecutionOutput execute(String prompt);
-
-  default CopilotExecutionOutput execute(String prompt, String model) {
-    return execute(prompt);
-  }
+  CopilotExecutionOutput execute(String prompt, String model);
 }

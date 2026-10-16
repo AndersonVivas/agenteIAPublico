@@ -1,92 +1,38 @@
 id: error-manual
 name: Error Manual
-version: 1.0.0
+version: 1.1.0
 status: active
+lifecycle: EVOLUTIONARY
+editorialReview: true
 description: >
   Operational incident manual generated from verified project knowledge for rapid
   diagnosis, mitigation, validation, escalation, and traceable incident response.
 
-metadata:
-  source: external-filesystem
-  sourceReference: iniciativaIADocumentacion/templates/error-manual.yaml
-  owner: documentation-platform
-  documentClass: incident-manual
-  canonicalPromptType: ERROR_MANUAL
-  canonicalDocumentTemplateType: ERROR_MANUAL
-  migrationRole: first-external-template
-  tags:
-    - operations
-    - incident-response
-    - error-catalog
-    - traceability
-    - knowledge-base
-    - production-support
+skills:
+  - lenguaje-claro
+  - glosario
+  - trazabilidad-discreta
 
-audiencePolicy:
-  defaultAudience: OPERATIONS
-  supportedAudiences:
-    - OPERATIONS
-    - FUNCTIONAL_USERS
-    - DEVELOPERS
-  overrideAllowed: true
-  fallbackAudience: OPERATIONS
+audience: OPERATIONS
+audienceProfile:
+  displayName: Equipos de operacion y soporte
+  preferredLanguage: es
+  businessContext: Operacion diaria del servicio y atencion de incidentes en produccion
+  decisionFocus: Restablecer el servicio de forma rapida y segura
+  primaryConcerns:
+    - Sintomas
+    - Mitigacion inmediata
+    - Pasos de validacion
+    - Fallos de dependencias
+    - Preparacion para escalar
+  excludedConcerns:
+    - Deep implementation internals
+    - Refactoring ideas
+    - Non-operational architectural commentary
+  preferredEvidenceVisibility: summarized
 
-audienceProfiles:
-  OPERATIONS:
-    audienceType: OPERATIONS
-    displayName: Operations
-    preferredLanguage: es
-    businessContext: Daily service operation and production incident handling
-    decisionFocus: Restore service quickly and safely
-    primaryConcerns:
-      - Symptoms
-      - Immediate mitigation
-      - Validation steps
-      - Dependency failures
-      - Escalation readiness
-    excludedConcerns:
-      - Deep implementation internals
-      - Refactoring ideas
-      - Non-operational architectural commentary
-    preferredEvidenceVisibility: summarized
-
-  FUNCTIONAL_USERS:
-    audienceType: FUNCTIONAL_USERS
-    displayName: Functional Users
-    preferredLanguage: es
-    businessContext: Business process continuity and user communication during incidents
-    decisionFocus: Understand business impact, service affectation, and communication priority
-    primaryConcerns:
-      - Business impact
-      - Affected user flows
-      - Functional degradation
-      - Recovery expectations
-      - Escalation context
-    excludedConcerns:
-      - Framework internals
-      - Stack trace details
-      - Low-level configuration mechanics
-    preferredEvidenceVisibility: translated
-
-  DEVELOPERS:
-    audienceType: DEVELOPERS
-    displayName: Developers
-    preferredLanguage: es
-    businessContext: Root-cause isolation and technical remediation support
-    decisionFocus: Confirm failure mechanism and shorten recovery plus permanent fix analysis
-    primaryConcerns:
-      - Configuration keys
-      - Exception names
-      - Endpoint and dependency behavior
-      - Timeouts
-      - Validation and rollback conditions
-    excludedConcerns:
-      - Business-only narrative
-      - Generic non-actionable prose
-    preferredEvidenceVisibility: explicit
-
-defaultCommunicationProfile:
-  profileId: error-manual-default
+communicationProfile:
+  profileId: error-manual-operations
   narrativeStyle: OPERATIONAL
   presentationMode: STEP_BY_STEP
   readingLevel: OPERATIONAL
@@ -97,11 +43,13 @@ defaultCommunicationProfile:
     - impacto
     - sintoma
     - causa probable
-    - mitigacion
+    - accion inmediata
     - validacion
+    - rollback
     - escalamiento
-    - evidencia
   forbiddenTerms:
+    - internals
+    - handler internals
     - voy a analizar
     - ahora voy a
     - list directory
@@ -110,261 +58,24 @@ defaultCommunicationProfile:
     - tool execution
     - pseudo-terminal
 
-communicationProfilesByAudience:
-  OPERATIONS:
-    profileId: error-manual-operations
-    narrativeStyle: OPERATIONAL
-    presentationMode: STEP_BY_STEP
-    readingLevel: OPERATIONAL
-    technicalAbstractionLevel: BALANCED
-    terminologyPolicy: TRANSLATED_TECHNICAL
-    defaultLanguage: es
-    preferredTerms:
-      - impacto
-      - sintoma
-      - accion inmediata
-      - validacion
-      - rollback
-      - escalamiento
-    forbiddenTerms:
-      - internals
-      - handler internals
-      - analysis narration
-
-  FUNCTIONAL_USERS:
-    profileId: error-manual-functional
-    narrativeStyle: BUSINESS_IMPACT
-    presentationMode: SUMMARY_FIRST
-    readingLevel: FUNCTIONAL
-    technicalAbstractionLevel: TRANSLATED
-    terminologyPolicy: BUSINESS_FRIENDLY
-    defaultLanguage: es
-    preferredTerms:
-      - proceso afectado
-      - impacto al usuario
-      - indisponibilidad
-      - degradacion
-      - comunicacion al negocio
-    forbiddenTerms:
-      - stack trace
-      - feignclient
-      - exception mapper
-      - framework internals
-
-  DEVELOPERS:
-    profileId: error-manual-developers
-    narrativeStyle: IMPLEMENTATION_GUIDANCE
-    presentationMode: CATALOG
-    readingLevel: TECHNICAL
-    technicalAbstractionLevel: EXPLICIT
-    terminologyPolicy: ENGINEERING_PRECISE
-    defaultLanguage: es
-    preferredTerms:
-      - timeout
-      - exception
-      - configuration key
-      - upstream dependency
-      - rollback criteria
-      - validation steps
-    forbiddenTerms:
-      - business-only framing
-      - motivational phrasing
-      - speculative cause
-
-documentObjective:
-  default: >
-    Generate or update an operational error manual in neutral Spanish using only
-    verified structured knowledge and preserving evidence traceability.
-  byAudience:
-    OPERATIONS: >
-      Help on-call and support teams diagnose, mitigate, validate, and escalate
-      production failures quickly and safely.
-    FUNCTIONAL_USERS: >
-      Explain incident impact in functional language, clarify affected business flows,
-      and provide safe operational guidance without low-level implementation noise.
-    DEVELOPERS: >
-      Provide technically precise incident guidance to accelerate diagnosis,
-      verification, mitigation, rollback decisions, and root-cause isolation.
-
 globalRules:
-  - Never invent information.
-  - Use only provided evidence and structured knowledge.
-  - Preserve identifiers, paths, endpoints, exception names, and configuration keys exactly.
-  - Respond as final document content only, without process narration.
+  - Never invent information; use only the provided evidence and structured knowledge.
+  - Keep identifiers, paths, endpoints, exception names, and configuration keys exact, and explain what each one means the first time it appears.
+  - Write narrative prose in Spanish; never translate technical tokens.
+  - Respond as final document content only, without process narration, tool traces, simulated commands, or requests for more context.
   - Do not mention tool limitations, repository access, or execution steps.
   - If information is missing, state exactly: No evidenciado en el escaneo.
-  - Keep guidance actionable, operational, and verifiable.
-  - Prefer short checklists, tables, and concise decision flows over long prose.
+  - Keep guidance actionable, operational, and verifiable; prefer direct verbs and observable facts.
+  - Prefer short checklists, tables, and concise decision flows over long prose; avoid decorative introductions and conclusions.
   - Distinguish evidenced facts from inferred operational recommendations.
-  - Include rollback criteria only when evidence supports it.
-  - Keep traceability visible in all critical sections.
+  - Do not include speculative root causes, generic best practices, refactoring proposals, or architecture commentary that does not help to handle incidents.
   - Do not prescribe target ranges, retries, or resilience mechanisms unless evidenced.
-
-writingInstructions:
-  language:
-    baseLanguage: es
-    preserveTechnicalIdentifiers: true
-    preserveExactTerms:
-      - endpoints
-      - exception classes
-      - configuration keys
-      - file paths
-      - signal ids
-      - evidence ids
-  tone:
-    - operational
-    - precise
-    - neutral
-    - actionable
-    - non-speculative
-  style:
-    - summary-first when audience is FUNCTIONAL_USERS
-    - step-by-step for triage and playbooks
-    - compact catalog format for error entries
-    - avoid decorative introductions and conclusions
-  sentencePolicy:
-    - prefer direct verbs
-    - prefer observable facts
-    - avoid ambiguous qualifiers
-    - avoid generic recommendations without evidence
-  formattingPolicy:
-    - use markdown headings exactly as defined by the template
-    - use bullet lists for actions
-    - use tables where comparison improves incident response speed
-    - keep evidence references visible and compact
+  - Include rollback criteria only when evidence supports it.
+  - State knowledge gaps and conflicts explicitly instead of hiding them.
+  - Keep traceability in the evidence index section; do not interrupt the body with evidence ids.
 
 outputContract:
-  format: markdown
-  outputOnlyDocumentBody: true
-  enforceTraceability: true
   missingInformationText: No evidenciado en el escaneo.
-  mandatorySections:
-    - "## Alcance y Calidad de Evidencia"
-    - "## Triage de los Primeros 15 Minutos"
-    - "## Catalogo de Errores"
-    - "## Matriz de Fallos de Dependencias Externas"
-    - "## Riesgos de Configuracion y Timeouts"
-    - "## Limitaciones Conocidas y Rutas No Soportadas"
-    - "## Recomendaciones de Monitoreo y Alertas"
-    - "## Playbooks de Recuperacion"
-    - "## Escalamiento y Datos a Recolectar"
-    - "## Indice de Evidencia"
-  mandatoryErrorFields:
-    - symptom
-    - probable causes
-    - evidence
-    - impact
-    - immediate mitigation
-    - validation steps
-    - escalation criteria
-    - rollback criteria
-  forbiddenOutput:
-    - process narration
-    - tool execution traces
-    - pseudo-terminal lines
-    - repository exploration instructions
-    - requests for more context
-    - claims without evidence
-    - self-referential wording
-    - simulated commands
-    - simulated file operations
-
-traceabilityStrategy:
-  mode: explicit-per-section
-  evidenceReferenceFormat: evidenceId
-  includeTraceabilityIndex: true
-  requirements:
-    - Every critical operational claim must map to evidence or a knowledge gap.
-    - Every error entry must reference one or more evidence ids.
-    - Gaps and conflicts must be surfaced explicitly, not hidden.
-    - The evidence index must be compact and back-reference document sections.
-  gapHandling:
-    missingDataText: No evidenciado en el escaneo.
-    exposeKnowledgeGaps: true
-    exposeKnowledgeConflicts: true
-
-userStrategies:
-  OPERATIONS:
-    emphasize:
-      - Fast triage
-      - Health indicators
-      - Immediate mitigation
-      - Validation after action
-      - Escalation readiness
-    deEmphasize:
-      - Internal class design
-      - Long architectural justification
-    expectedArtifacts:
-      - decision flow
-      - short operational checklists
-      - dependency failure matrix
-      - recovery playbooks
-
-  FUNCTIONAL_USERS:
-    emphasize:
-      - Business impact
-      - Affected journeys
-      - Service degradation level
-      - Communication implications
-      - Safe escalation context
-    deEmphasize:
-      - Stack traces
-      - Framework names
-      - Deep configuration detail
-    expectedArtifacts:
-      - impact summary
-      - affected capability notes
-      - concise escalation guidance
-
-  DEVELOPERS:
-    emphasize:
-      - Technical failure signatures
-      - Exact identifiers
-      - Configuration risk
-      - Timeout behavior
-      - Validation and rollback evidence
-    deEmphasize:
-      - High-level business storytelling
-    expectedArtifacts:
-      - precise error catalog
-      - evidence-linked failure patterns
-      - technical validation steps
-
-displayInformation:
-  - Repository and scan context relevant for incident handling
-  - Verified findings from API, exceptions, dependencies, configuration, and monitoring
-  - Knowledge gaps that affect safe diagnosis
-  - Knowledge conflicts that may affect confidence
-  - Operational triage flow
-  - Error catalog with stable IDs
-  - Dependency failure modes and observable symptoms
-  - Configuration and timeout risks evidenced by scan results
-  - Monitoring and alert opportunities justified by evidence
-  - Recovery playbooks and escalation data requirements
-
-omitInformation:
-  - Process narration about how the document was generated
-  - Instructions to inspect the repository manually
-  - Unsupported assumptions about runtime behavior
-  - Generic best practices without evidence
-  - Architecture commentary not useful for incident handling
-  - Refactoring proposals
-  - Speculative root causes with no supporting evidence
-  - Tool logs, command lines, permission messages, or pseudo-actions
-
-languagePolicy:
-  defaultLanguage: es
-  audienceOverridesAllowed: true
-  preserveExactTechnicalTokens: true
-  translationRule: >
-    Translate narrative prose to Spanish but preserve exact technical tokens such as
-    exception names, endpoints, configuration keys, class names, file paths, and evidence ids.
-
-technicalLevelPolicy:
-  OPERATIONS: balanced-operational
-  FUNCTIONAL_USERS: translated-functional
-  DEVELOPERS: explicit-technical
-  fallback: balanced-operational
 
 sections:
   - id: scope
@@ -401,7 +112,7 @@ sections:
     instructions:
       - Use stable IDs in format ERR-001, ERR-002, ERR-003.
       - Group entries by domain such as API, integration, messaging, config, runtime.
-      - Each entry must include all mandatoryErrorFields.
+      - Each entry must include symptom, probable causes, impact, immediate mitigation, validation steps, escalation criteria and, when evidenced, rollback criteria.
       - Preserve exact technical identifiers.
 
   - id: dependencies
@@ -472,12 +183,22 @@ sections:
       - Specify minimum data to collect before escalation.
       - Distinguish operational escalation from development follow-up.
 
+  - id: glossary
+    title: Glosario
+    objective: >
+      Explain in plain words the technical terms, acronyms and system names used in this manual.
+    required: true
+    order: 10
+    instructions:
+      - Include only terms that appear in the other sections or in the evidence.
+      - Explain each term in one sentence without jargon.
+
   - id: evidence
     title: Indice de Evidencia
     objective: >
       Provide a compact traceability index from document guidance back to evidence.
     required: true
-    order: 10
+    order: 11
     instructions:
       - End the document with a compact evidence index.
       - Link evidence ids to the sections or error entries where they were used.

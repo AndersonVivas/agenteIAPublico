@@ -5,7 +5,6 @@ import com.pichincha.cdemsaspopenaidocumentation.documentation.template.port.Ext
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -25,11 +24,6 @@ public class CompositeTemplateSource {
       }
     }
     return merged.values().stream().toList();
-  }
-
-  public Optional<RawTemplateDescriptor> findBySourceId(String sourceId) {
-    return listAvailable().stream().filter(descriptor ->
-        descriptor.sourceId().equals(sourceId)).findFirst();
   }
 
   private String dedupKey(RawTemplateDescriptor descriptor) {

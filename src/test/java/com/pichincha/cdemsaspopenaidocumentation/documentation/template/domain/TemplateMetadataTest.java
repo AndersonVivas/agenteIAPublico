@@ -1,31 +1,28 @@
 package com.pichincha.cdemsaspopenaidocumentation.documentation.template.domain;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.time.Instant;
-import java.util.Map;
+import com.pichincha.cdemsaspopenaidocumentation.domain.enums.TemplateStatusEnum;
 import org.junit.jupiter.api.Test;
 
 class TemplateMetadataTest {
 
   @Test
-  void shouldApplyDefaultsWhenNullsAreProvided() {
-    TemplateMetadata metadata = new TemplateMetadata(null, null, null, null, null);
-
-    assertEquals("internal", metadata.source());
-    assertEquals("", metadata.sourceReference());
-    assertEquals(Instant.EPOCH, metadata.publishedAt());
-    assertTrue(metadata.tags().isEmpty());
-    assertTrue(metadata.attributes().isEmpty());
+  void shouldNormalizeMissingChecksum() {
+    assertEquals("", new TemplateMetadata(null, null).checksum());
+    assertEquals("", TemplateMetadata.internal().checksum());
   }
 
   @Test
-  void shouldCopyAttributesDefensively() {
-    Map<String, String> attributes = Map.of("owner", "platform-team");
-    TemplateMetadata metadata = new TemplateMetadata("git", "main", Instant.now(),
-        null, attributes);
+  void shouldTrimChecksum() {
+    assertEquals("abc", new TemplateMetadata(" abc ", null).checksum());
+  }
 
-    assertEquals("platform-team", metadata.attributes().get("owner"));
+  @Test
+  void shouldBeActiveUnlessDeclaredInactive() {
+    assertTrue(new TemplateMetadata("abc", null).active());
+    assertFalse(new TemplateMetadata("abc", TemplateStatusEnum.INACTIVE).active());
   }
 }

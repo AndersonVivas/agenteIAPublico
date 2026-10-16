@@ -8,16 +8,19 @@ import com.pichincha.cdemsaspopenaidocumentation.copilot.SpecialistDocumentation
 import com.pichincha.cdemsaspopenaidocumentation.copilot.domain.AgentFinding;
 import com.pichincha.cdemsaspopenaidocumentation.copilot.domain.AgentKnowledgeResult;
 import com.pichincha.cdemsaspopenaidocumentation.copilot.domain.CopilotExecutionOutput;
-import com.pichincha.cdemsaspopenaidocumentation.copilot.domain.DocumentationAgentType;
 import com.pichincha.cdemsaspopenaidocumentation.copilot.domain.PromptExecutionStatus;
 import com.pichincha.cdemsaspopenaidocumentation.copilot.domain.SpecialistAgentRequest;
 import com.pichincha.cdemsaspopenaidocumentation.copilot.exception.AgentExecutionException;
 import com.pichincha.cdemsaspopenaidocumentation.copilot.support.AgentEvidenceFormatter;
+import com.pichincha.cdemsaspopenaidocumentation.copilot.support.EvidenceReferenceFilter;
 import com.pichincha.cdemsaspopenaidocumentation.copilot.support.JsonResponseExtractor;
 import com.pichincha.cdemsaspopenaidocumentation.copilot.support.PromptPlaceholderRenderer;
 import com.pichincha.cdemsaspopenaidocumentation.copilot.support.SectionContextPromptFormatter;
+import com.pichincha.cdemsaspopenaidocumentation.domain.CodeSignalEvidence;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Shared execution template for every specialist agent: load its external prompt, render
@@ -48,14 +51,20 @@ abstract class AbstractSpecialistAgent implements SpecialistDocumentationAgent {
       throw new AgentExecutionException(agentType(), "Copilot CLI did not complete "
           + "successfully: " + output.stderr());
     }
-    return parseResult(output.stdout(), model);
+    return EvidenceReferenceFilter.retainKnownEvidence(parseResult(output.stdout(), model),
+        knownEvidenceIds(request));
+  }
+
+  private Set<String> knownEvidenceIds(SpecialistAgentRequest request) {
+    return request.evidence().stream().map(CodeSignalEvidence::evidenceId)
+        .collect(Collectors.toSet());
   }
 
   private Map<String, String> placeholders(SpecialistAgentRequest request) {
     return Map.of(
-        "repositoryName", request.generationContext().repositoryName(),
-        "organization", request.generationContext().organization(),
-        "projectName", request.generationContext().projectName(),
+        "repositoryName", request.generationContext().repository().repositoryName(),
+        "organization", request.generationContext().repository().organization(),
+        "projectName", request.generationContext().repository().projectName(),
         "objective", objective(),
         "evidence", AgentEvidenceFormatter.format(request.evidence()),
         "sections", SectionContextPromptFormatter.format(request.relevantSections()));

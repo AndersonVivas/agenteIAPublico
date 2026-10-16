@@ -1,46 +1,55 @@
 package com.pichincha.cdemsaspopenaidocumentation.service.impl;
 
 import com.pichincha.cdemsaspopenaidocumentation.config.TemporalProperties;
+import com.pichincha.cdemsaspopenaidocumentation.documentation.template.service.DocumentTemplateService;
+import com.pichincha.cdemsaspopenaidocumentation.domain.DocumentationRunRequest;
 import com.pichincha.cdemsaspopenaidocumentation.domain.RepositoryCloneRequest;
 import com.pichincha.cdemsaspopenaidocumentation.domain.RepositoryCloneResponse;
+import com.pichincha.cdemsaspopenaidocumentation.domain.RepositoryCoordinates;
+import com.pichincha.cdemsaspopenaidocumentation.exception.ExecutionAlreadyRunningException;
 import com.pichincha.cdemsaspopenaidocumentation.service.RepositoryProcessingOrchestrator;
 import com.pichincha.cdemsaspopenaidocumentation.workflow.RepositoryProcessingWorkflow;
 import io.temporal.client.WorkflowClient;
+import io.temporal.client.WorkflowExecutionAlreadyStarted;
 import io.temporal.client.WorkflowOptions;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Component;
+import java.util.List;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
 
-@Component
-@ConditionalOnProperty(prefix = "app.temporal", name = "enabled", havingValue = "true")
+@Service
+@RequiredArgsConstructor
 public class TemporalRepositoryProcessingOrchestrator implements RepositoryProcessingOrchestrator {
 
   private final WorkflowClient workflowClient;
   private final TemporalProperties properties;
-
-  public TemporalRepositoryProcessingOrchestrator(WorkflowClient workflowClient,
-      TemporalProperties properties) {
-    this.workflowClient = workflowClient;
-    this.properties = properties;
-  }
+  private final DocumentTemplateService documentTemplateService;
 
   @Override
   public RepositoryCloneResponse process(RepositoryCloneRequest request,
-      boolean generateDocumentation, String templateId) {
+      boolean generateDocumentation) {
+    List<String> templateIds = generateDocumentation
+        ? documentTemplateService.resolveTemplateIds(request.templateIds()) : List.of();
+    String workflowId = workflowId(request.coordinates());
     RepositoryProcessingWorkflow workflow = workflowClient.newWorkflowStub(
-        RepositoryProcessingWorkflow.class, workflowOptions(request));
-    return workflow.process(request, generateDocumentation, templateId);
+        RepositoryProcessingWorkflow.class, workflowOptions(workflowId));
+    try {
+      return workflow.process(new DocumentationRunRequest(request.coordinates(),
+          request.pullRequestId(), templateIds, request.forceFullScan(),
+          generateDocumentation));
+    } catch (WorkflowExecutionAlreadyStarted exception) {
+      throw new ExecutionAlreadyRunningException(workflowId, exception);
+    }
   }
 
-  private WorkflowOptions workflowOptions(RepositoryCloneRequest request) {
+  private WorkflowOptions workflowOptions(String workflowId) {
     return WorkflowOptions.newBuilder()
         .setTaskQueue(properties.taskQueue())
-        .setWorkflowId(buildWorkflowId(request))
-        .setWorkflowRunTimeout(properties.workflowTimeout())
+        .setWorkflowId(workflowId)
+        .setWorkflowExecutionTimeout(properties.workflowTimeout())
         .build();
   }
 
-  private String buildWorkflowId(RepositoryCloneRequest request) {
-    return properties.workflowIdPrefix() + "-" + request.pullRequestId() + "-"
-        + request.repositoryName().replaceAll("[^a-zA-Z0-9._-]", "-");
+  private String workflowId(RepositoryCoordinates repository) {
+    return properties.workflowIdPrefix() + "-" + repository.key().replace('/', '-');
   }
 }

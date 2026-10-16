@@ -1,21 +1,20 @@
 package com.pichincha.cdemsaspopenaidocumentation.activity.impl;
 
 import com.pichincha.cdemsaspopenaidocumentation.activity.ScanRepositoryActivity;
-import com.pichincha.cdemsaspopenaidocumentation.domain.CodeScanSummary;
-import com.pichincha.cdemsaspopenaidocumentation.service.CodeScanService;
+import com.pichincha.cdemsaspopenaidocumentation.domain.ScanCommand;
+import com.pichincha.cdemsaspopenaidocumentation.domain.ScanExecutionSummary;
+import com.pichincha.cdemsaspopenaidocumentation.service.RepositoryScanService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 @Component
+@RequiredArgsConstructor
 public class ScanRepositoryActivityImpl implements ScanRepositoryActivity {
 
-  private final CodeScanService codeScanService;
-
-  public ScanRepositoryActivityImpl(CodeScanService codeScanService) {
-    this.codeScanService = codeScanService;
-  }
+  private final RepositoryScanService repositoryScanService;
 
   @Override
-  public CodeScanSummary scanRepository(String localRepositoryPath) {
-    return codeScanService.scanRepository(localRepositoryPath);
+  public ScanExecutionSummary scanRepository(ScanCommand command) {
+    return repositoryScanService.scan(command);
   }
 }

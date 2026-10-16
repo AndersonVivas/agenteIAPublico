@@ -1,6 +1,5 @@
 package com.pichincha.cdemsaspopenaidocumentation.config;
 
-import com.pichincha.cdemsaspopenaidocumentation.activity.CloneRepositoryActivity;
 import com.pichincha.cdemsaspopenaidocumentation.activity.GenerateDocumentationActivity;
 import com.pichincha.cdemsaspopenaidocumentation.activity.ScanRepositoryActivity;
 import com.pichincha.cdemsaspopenaidocumentation.workflow.impl.RepositoryProcessingWorkflowImpl;
@@ -10,15 +9,13 @@ import io.temporal.serviceclient.WorkflowServiceStubs;
 import io.temporal.serviceclient.WorkflowServiceStubsOptions;
 import io.temporal.worker.Worker;
 import io.temporal.worker.WorkerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-@ConditionalOnProperty(prefix = "app.temporal", name = "enabled", havingValue = "true")
 public class TemporalConfiguration {
 
-  @Bean
+  @Bean(destroyMethod = "shutdown")
   WorkflowServiceStubs workflowServiceStubs(TemporalProperties properties) {
     WorkflowServiceStubsOptions options = WorkflowServiceStubsOptions.newBuilder()
         .setTarget(properties.serverTarget())
@@ -37,15 +34,14 @@ public class TemporalConfiguration {
 
   @Bean(destroyMethod = "shutdown")
   WorkerFactory workerFactory(WorkflowClient workflowClient,
-      CloneRepositoryActivity cloneRepositoryActivity,
       ScanRepositoryActivity scanRepositoryActivity,
       GenerateDocumentationActivity generateDocumentationActivity,
       TemporalProperties properties) {
     WorkerFactory workerFactory = WorkerFactory.newInstance(workflowClient);
     Worker worker = workerFactory.newWorker(properties.taskQueue());
-    worker.registerActivitiesImplementations(cloneRepositoryActivity, scanRepositoryActivity,
-        generateDocumentationActivity);
     worker.registerWorkflowImplementationTypes(RepositoryProcessingWorkflowImpl.class);
+    worker.registerActivitiesImplementations(scanRepositoryActivity,
+        generateDocumentationActivity);
     workerFactory.start();
     return workerFactory;
   }

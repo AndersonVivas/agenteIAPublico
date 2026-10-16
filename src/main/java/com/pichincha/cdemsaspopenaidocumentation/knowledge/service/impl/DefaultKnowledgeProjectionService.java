@@ -1,9 +1,8 @@
 package com.pichincha.cdemsaspopenaidocumentation.knowledge.service.impl;
 
-import com.pichincha.cdemsaspopenaidocumentation.domain.CodeScanSummary;
 import com.pichincha.cdemsaspopenaidocumentation.domain.CodeSignalEvidence;
-import com.pichincha.cdemsaspopenaidocumentation.domain.ScanExecutionMetadata;
 import com.pichincha.cdemsaspopenaidocumentation.knowledge.domain.ApiKnowledge;
+import com.pichincha.cdemsaspopenaidocumentation.knowledge.domain.BusinessKnowledge;
 import com.pichincha.cdemsaspopenaidocumentation.knowledge.domain.ConfigurationKnowledge;
 import com.pichincha.cdemsaspopenaidocumentation.knowledge.domain.DependencyKnowledge;
 import com.pichincha.cdemsaspopenaidocumentation.knowledge.domain.EvidenceRef;
@@ -13,7 +12,6 @@ import com.pichincha.cdemsaspopenaidocumentation.knowledge.domain.KnowledgeFindi
 import com.pichincha.cdemsaspopenaidocumentation.knowledge.domain.KnowledgeGap;
 import com.pichincha.cdemsaspopenaidocumentation.knowledge.domain.MonitoringKnowledge;
 import com.pichincha.cdemsaspopenaidocumentation.knowledge.domain.ProjectKnowledgeBase;
-import com.pichincha.cdemsaspopenaidocumentation.knowledge.domain.RepositoryKnowledgeContext;
 import com.pichincha.cdemsaspopenaidocumentation.knowledge.service.KnowledgeProjectionService;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -35,46 +33,29 @@ public class DefaultKnowledgeProjectionService implements KnowledgeProjectionSer
   private static final String DEPENDENCY = "dependency";
   private static final String CONFIGURATION = "configuration";
   private static final String MONITORING = "monitoring";
+  private static final String BUSINESS = "business";
+  private static final String BUSINESS_CONTEXT_SIGNAL = "business_context";
 
   @Override
-  public ProjectKnowledgeBase project(CodeScanSummary summary,
-      List<CodeSignalEvidence> evidences) {
-    List<CodeSignalEvidence> source = sourceEvidences(summary, evidences);
+  public ProjectKnowledgeBase project(List<CodeSignalEvidence> evidences) {
+    List<CodeSignalEvidence> source = sourceEvidences(evidences);
     Map<String, List<CodeSignalEvidence>> byCategory = source.stream()
         .collect(Collectors.groupingBy(this::classify, LinkedHashMap::new,
             Collectors.toList()));
     List<KnowledgeGap> gaps = buildGaps(byCategory);
     List<KnowledgeConflict> conflicts = buildConflicts(source);
-    Map<String, EvidenceRef> index = buildEvidenceIndex(source);
-    return new ProjectKnowledgeBase(repositoryContext(summary, source.size()),
+    return new ProjectKnowledgeBase(
         new ApiKnowledge(buildFindings(byCategory.get(API), API)),
         new ExceptionKnowledge(buildFindings(byCategory.get(EXCEPTION), EXCEPTION)),
         new DependencyKnowledge(buildFindings(byCategory.get(DEPENDENCY), DEPENDENCY)),
         new ConfigurationKnowledge(buildFindings(byCategory.get(CONFIGURATION), CONFIGURATION)),
         new MonitoringKnowledge(buildFindings(byCategory.get(MONITORING), MONITORING)),
-        gaps, conflicts, index);
+        new BusinessKnowledge(buildFindings(byCategory.get(BUSINESS), BUSINESS)),
+        gaps, conflicts);
   }
 
-  private RepositoryKnowledgeContext repositoryContext(CodeScanSummary summary,
-      long extractedSignals) {
-    if (summary == null) {
-      return new RepositoryKnowledgeContext("", "", java.time.Instant.EPOCH, 0, 0,
-          extractedSignals, Map.of(), Map.of());
-    }
-    return new RepositoryKnowledgeContext(summary.scanId(),
-        summary.repositoryFingerprint(), summary.scanTimestamp(), summary.totalFiles(),
-        summary.directories(), metadataSignals(summary.metadata(), extractedSignals),
-        summary.filesByLanguage(), summary.filesByExtension());
-  }
-
-  private long metadataSignals(ScanExecutionMetadata metadata, long extractedSignals) {
-    return metadata == null ? extractedSignals : metadata.signalsExtracted();
-  }
-
-  private List<CodeSignalEvidence> sourceEvidences(CodeScanSummary summary,
-      List<CodeSignalEvidence> evidences) {
+  private List<CodeSignalEvidence> sourceEvidences(List<CodeSignalEvidence> evidences) {
     Map<String, CodeSignalEvidence> byId = new LinkedHashMap<>();
-    mergeByEvidenceId(byId, summary == null ? List.of() : summary.evidences());
     mergeByEvidenceId(byId, evidences == null ? List.of() : evidences);
     return byId.values().stream()
         .sorted(Comparator.comparing(CodeSignalEvidence::evidenceId)).toList();
@@ -160,6 +141,7 @@ public class DefaultKnowledgeProjectionService implements KnowledgeProjectionSer
     addGapIfMissing(byCategory, gaps, DEPENDENCY);
     addGapIfMissing(byCategory, gaps, CONFIGURATION);
     addGapIfMissing(byCategory, gaps, MONITORING);
+    addGapIfMissing(byCategory, gaps, BUSINESS);
     return gaps.stream().sorted(Comparator.comparing(KnowledgeGap::gapId)).toList();
   }
 
@@ -194,12 +176,6 @@ public class DefaultKnowledgeProjectionService implements KnowledgeProjectionSer
     return new KnowledgeConflict(id, category, description, refs);
   }
 
-  private Map<String, EvidenceRef> buildEvidenceIndex(List<CodeSignalEvidence> evidences) {
-    return evidences.stream().map(this::toRef).collect(Collectors.toMap(
-        EvidenceRef::evidenceId, ref -> ref, (first, ignored) -> first,
-        LinkedHashMap::new));
-  }
-
   private EvidenceRef toRef(CodeSignalEvidence evidence) {
     return new EvidenceRef(evidence.evidenceId(), evidence.filePath(),
         evidence.ruleId(), normalize(evidence.signalType()), evidence.confidence());
@@ -215,6 +191,9 @@ public class DefaultKnowledgeProjectionService implements KnowledgeProjectionSer
     }
     if (MONITORING.equals(signalType)) {
       return MONITORING;
+    }
+    if (BUSINESS_CONTEXT_SIGNAL.equals(signalType)) {
+      return BUSINESS;
     }
     if (DEPENDENCY.equals(signalType) || "database".equals(signalType)) {
       return DEPENDENCY;

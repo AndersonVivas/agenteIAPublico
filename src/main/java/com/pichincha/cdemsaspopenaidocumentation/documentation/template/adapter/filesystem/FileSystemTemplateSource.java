@@ -1,7 +1,6 @@
 package com.pichincha.cdemsaspopenaidocumentation.documentation.template.adapter.filesystem;
 
 import com.pichincha.cdemsaspopenaidocumentation.documentation.template.domain.RawTemplateDescriptor;
-import com.pichincha.cdemsaspopenaidocumentation.documentation.template.domain.TemplateSourceType;
 import com.pichincha.cdemsaspopenaidocumentation.documentation.template.port.ExternalTemplateSource;
 import java.nio.file.Path;
 import java.util.List;
@@ -20,21 +19,11 @@ public class FileSystemTemplateSource implements ExternalTemplateSource {
     this.fileResolver = fileResolver;
   }
 
-  @Override
-  public TemplateSourceType sourceType() {
-    return TemplateSourceType.FILE_SYSTEM;
-  }
 
   @Override
   public List<RawTemplateDescriptor> listAvailable() {
     Path root = scanner.rootPath();
     return scanner.scan().stream().map(path -> fileResolver.resolve(root, path))
         .flatMap(Optional::stream).toList();
-  }
-
-  @Override
-  public Optional<RawTemplateDescriptor> findBySourceId(String sourceId) {
-    return listAvailable().stream().filter(descriptor ->
-        descriptor.sourceId().equals(sourceId)).findFirst();
   }
 }

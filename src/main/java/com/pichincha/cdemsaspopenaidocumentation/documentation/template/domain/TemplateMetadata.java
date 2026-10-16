@@ -1,27 +1,20 @@
 package com.pichincha.cdemsaspopenaidocumentation.documentation.template.domain;
 
-import java.time.Instant;
-import java.util.List;
-import java.util.Map;
+import com.pichincha.cdemsaspopenaidocumentation.domain.enums.TemplateStatusEnum;
 import org.apache.commons.lang3.StringUtils;
 
-public record TemplateMetadata(
-    String source,
-    String sourceReference,
-    Instant publishedAt,
-    List<String> tags,
-    Map<String, String> attributes) {
+public record TemplateMetadata(String checksum, TemplateStatusEnum status) {
 
   public TemplateMetadata {
-    source = StringUtils.defaultIfBlank(source, "internal").trim();
-    sourceReference = StringUtils.defaultString(sourceReference).trim();
-    publishedAt = publishedAt == null ? Instant.EPOCH : publishedAt;
-    tags = tags == null ? List.of() : tags.stream().map(StringUtils::defaultString)
-        .map(String::trim).filter(StringUtils::isNotBlank).toList();
-    attributes = attributes == null ? Map.of() : Map.copyOf(attributes);
+    checksum = StringUtils.defaultString(checksum).trim();
+    status = status == null ? TemplateStatusEnum.ACTIVE : status;
   }
 
   public static TemplateMetadata internal() {
-    return new TemplateMetadata("internal", "", Instant.EPOCH, List.of(), Map.of());
+    return new TemplateMetadata("", TemplateStatusEnum.ACTIVE);
+  }
+
+  public boolean active() {
+    return status == TemplateStatusEnum.ACTIVE;
   }
 }

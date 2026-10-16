@@ -9,6 +9,7 @@ public record SectionContext(
     String sectionId,
     String title,
     String objective,
+    List<String> instructions,
     boolean required,
     int order,
     String narrativeIntent,
@@ -22,6 +23,7 @@ public record SectionContext(
     sectionId = normalize(sectionId);
     title = normalize(title);
     objective = normalize(objective);
+    instructions = instructions == null ? List.of() : List.copyOf(instructions);
     narrativeIntent = normalize(narrativeIntent);
     presentationMode = presentationMode == null
         ? PresentationMode.SUMMARY_FIRST : presentationMode;

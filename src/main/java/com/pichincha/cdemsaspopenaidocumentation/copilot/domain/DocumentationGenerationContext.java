@@ -1,26 +1,20 @@
 package com.pichincha.cdemsaspopenaidocumentation.copilot.domain;
 
-import com.pichincha.cdemsaspopenaidocumentation.domain.CodeScanSummary;
-import org.apache.commons.lang3.StringUtils;
+import com.pichincha.cdemsaspopenaidocumentation.domain.CodeSignalEvidence;
+import com.pichincha.cdemsaspopenaidocumentation.domain.FileChange;
+import com.pichincha.cdemsaspopenaidocumentation.domain.RepositoryCoordinates;
+import com.pichincha.cdemsaspopenaidocumentation.domain.ScanExecutionSummary;
+import java.util.List;
 
 public record DocumentationGenerationContext(
-    String scanId,
-    String repositoryName,
-    String repositoryPath,
-    String organization,
-    String projectName,
+    RepositoryCoordinates repository,
     Long pullRequestId,
-    CodeScanSummary codeScanSummary) {
+    ScanExecutionSummary scan,
+    List<CodeSignalEvidence> evidences,
+    List<FileChange> changedFiles) {
 
   public DocumentationGenerationContext {
-    scanId = normalize(scanId);
-    repositoryName = normalize(repositoryName);
-    repositoryPath = normalize(repositoryPath);
-    organization = normalize(organization);
-    projectName = normalize(projectName);
-  }
-
-  private static String normalize(String value) {
-    return StringUtils.defaultString(value).trim();
+    evidences = evidences == null ? List.of() : List.copyOf(evidences);
+    changedFiles = changedFiles == null ? List.of() : List.copyOf(changedFiles);
   }
 }

@@ -11,8 +11,7 @@ class CopilotCliPromptExecutorTest {
 
   @Test
   void shouldBuildPromptCommandWithoutModelArgument() throws Exception {
-    CopilotCliProperties properties = new CopilotCliProperties("copilot", List.of("-p"),
-      60);
+    CopilotCliProperties properties = new CopilotCliProperties("copilot", 60);
     CopilotCliPromptExecutor executor = new CopilotCliPromptExecutor(properties);
 
     Method method = CopilotCliPromptExecutor.class.getDeclaredMethod("buildPromptCommand",
@@ -31,8 +30,7 @@ class CopilotCliPromptExecutorTest {
 
   @Test
   void shouldAppendModelArgumentWhenModelIsProvided() throws Exception {
-    CopilotCliProperties properties = new CopilotCliProperties("copilot", List.of("-p"),
-      60);
+    CopilotCliProperties properties = new CopilotCliProperties("copilot", 60);
     CopilotCliPromptExecutor executor = new CopilotCliPromptExecutor(properties);
 
     Method method = CopilotCliPromptExecutor.class.getDeclaredMethod("buildPromptCommand",
@@ -45,5 +43,22 @@ class CopilotCliPromptExecutorTest {
 
     assertTrue(command.contains("--model"));
     assertTrue(command.get(command.size() - 1).equals("gpt-5"));
+  }
+
+  @Test
+  void shouldDenyEveryToolSoCopilotWorksOnlyWithThePromptEvidence() throws Exception {
+    CopilotCliPromptExecutor executor = new CopilotCliPromptExecutor(
+        new CopilotCliProperties("copilot", 60));
+    Method method = CopilotCliPromptExecutor.class.getDeclaredMethod("buildPromptCommand",
+        String.class, String.class, String.class);
+    method.setAccessible(true);
+
+    @SuppressWarnings("unchecked")
+    List<String> command = (List<String>) method.invoke(executor, "copilot", "prompt", "");
+
+    assertTrue(command.containsAll(List.of("--no-custom-instructions",
+        "--disable-builtin-mcps", "--no-ask-user", "--silent")));
+    assertTrue(command.contains("--deny-tool=shell, write, read, url, memory"));
+    assertTrue(command.stream().noneMatch(argument -> argument.startsWith("--allow")));
   }
 }

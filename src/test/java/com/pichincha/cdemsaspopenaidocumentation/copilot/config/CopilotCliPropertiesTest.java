@@ -2,23 +2,23 @@ package com.pichincha.cdemsaspopenaidocumentation.copilot.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class CopilotCliPropertiesTest {
 
   @Test
-  void shouldProvideDefaultPromptArguments() {
-    CopilotCliProperties properties = new CopilotCliProperties("copilot", List.of(), 60);
+  void shouldApplyDefaultsWhenValuesAreMissing() {
+    CopilotCliProperties properties = new CopilotCliProperties(" ", 0);
 
-    assertEquals(List.of("-p"), properties.arguments());
+    assertEquals("copilot", properties.command());
+    assertEquals(300, properties.timeoutSeconds());
   }
 
   @Test
-  void shouldIgnoreConfiguredArgumentsAndKeepPromptArgumentOnly() {
-    CopilotCliProperties properties = new CopilotCliProperties("copilot",
-        List.of("--temperature,0", "--allow-all-tools"), 60);
+  void shouldKeepConfiguredValues() {
+    CopilotCliProperties properties = new CopilotCliProperties("gh-copilot", 60);
 
-    assertEquals(List.of("-p"), properties.arguments());
+    assertEquals("gh-copilot", properties.command());
+    assertEquals(60, properties.timeoutSeconds());
   }
 }

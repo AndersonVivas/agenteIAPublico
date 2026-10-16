@@ -1,16 +1,28 @@
 spring:
   application:
     name: cde-msa-sp-openai-documentation
+  datasource:
+    url: ${CDE_DB_URL:jdbc:h2:file:${documentation.home}/db/documentation-agent;AUTO_SERVER=TRUE}
+    username: ${CDE_DB_USERNAME:sa}
+    password: ${CDE_DB_PASSWORD:}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+  h2:
+    console:
+      enabled: ${CDE_H2_CONSOLE_ENABLED:true}
+      path: /h2-console
 app:
   git:
     base-url: ${CDE_GIT_BASE_URL:https://dev.azure.com}
     username: 'avivaspa'
     personal-access-token: '9IcMIjNL6pxUrubRcO4GJ5qEQ7rKOToHMkZpHbvQGcJA2PHjCSBPJQQJ99CJACAAAAAihC6zAAASAZDO0phZ'
-    clone-directory: ${CDE_GIT_CLONE_DIRECTORY:/Users/avivaspa/Documents/iniciativaIADocumentación/repositoriosAnalizados}
-    overwrite-existing: ${CDE_GIT_OVERWRITE_EXISTING:true}
+    clone-directory: ${CDE_GIT_CLONE_DIRECTORY:${documentation.home}/repositoriosAnalizados}
     clone-timeout: ${CDE_GIT_CLONE_TIMEOUT:PT5M}
   temporal:
-    enabled: ${CDE_TEMPORAL_ENABLED:false}
     namespace: ${CDE_TEMPORAL_NAMESPACE:default}
     task-queue: ${CDE_TEMPORAL_TASK_QUEUE:repository-agent-task-queue}
     server-target: ${CDE_TEMPORAL_SERVER_TARGET:127.0.0.1:7233}
@@ -18,16 +30,16 @@ app:
     workflow-id-prefix: ${CDE_TEMPORAL_WORKFLOW_ID_PREFIX:repository-agent}
 
 documentation:
-  output-directory: ${CDE_DOCUMENTATION_OUTPUT_DIRECTORY:docs}
-  centralized-output-path: ${CDE_DOCUMENTATION_CENTRALIZED_PATH:/Users/avivaspa/Documents/iniciativaIADocumentación/documentación}
-  overwrite-existing: ${CDE_DOCUMENTATION_OVERWRITE_EXISTING:true}
-  evolutionary-mode: ${CDE_DOCUMENTATION_EVOLUTIONARY_MODE:true}
+  home: ${CDE_DOCUMENTATION_HOME:${user.home}/Documents/iniciativaIADocumentación}
+  output-root: ${CDE_DOCUMENTATION_OUTPUT_ROOT:${documentation.home}/documentación}
   templates:
-    path: ${CDE_DOCUMENTATION_TEMPLATES_PATH:/Users/avivaspa/Documents/iniciativaIADocumentación/templates}
+    path: ${CDE_DOCUMENTATION_TEMPLATES_PATH:${documentation.home}/templates}
     extensions: ${CDE_DOCUMENTATION_TEMPLATES_EXTENSIONS:.yml,.yaml,.json,.md}
   prompts:
-    path: ${CDE_DOCUMENTATION_PROMPTS_PATH:/Users/avivaspa/Documents/iniciativaIADocumentación/prompts}
+    path: ${CDE_DOCUMENTATION_PROMPTS_PATH:${documentation.home}/prompts}
     extension: ${CDE_DOCUMENTATION_PROMPTS_EXTENSION:.md}
+  skills:
+    path: ${CDE_DOCUMENTATION_SKILLS_PATH:${documentation.home}/skills}
   agents:
     api:
       model: ${CDE_AGENT_API_MODEL:gpt-5-mini}
@@ -45,10 +57,11 @@ documentation:
       model: ${CDE_AGENT_CONSOLIDATION_MODEL:gpt-5.6-terra}
     renderer:
       model: ${CDE_AGENT_RENDERER_MODEL:gpt-5.6-terra}
+    editor:
+      model: ${CDE_AGENT_EDITOR_MODEL:gpt-5.6-terra}
 github:
   copilot:
     command: ${CDE_GITHUB_COPILOT_COMMAND:copilot}
-    arguments: ${CDE_GITHUB_COPILOT_ARGUMENTS:-p}
     timeout-seconds: ${CDE_GITHUB_COPILOT_TIMEOUT_SECONDS:300}
 server:
   port: 8080 

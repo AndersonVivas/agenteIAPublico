@@ -1,17 +1,16 @@
 package com.pichincha.cdemsaspopenaidocumentation.copilot;
 
 import com.pichincha.cdemsaspopenaidocumentation.copilot.domain.DocumentStateSnapshot;
-import java.util.Optional;
+import com.pichincha.cdemsaspopenaidocumentation.copilot.domain.SectionState;
+import java.util.Map;
 
 /**
- * Persists the per-section content fingerprints of the last generated document so the
- * next execution can detect which sections changed and only regenerate those.
+ * Persists, per evolutionary document, the fingerprint and body of every generated section so
+ * the next execution regenerates only the sections whose inputs changed.
  */
 public interface DocumentStateRepository {
 
-  Optional<DocumentStateSnapshot> load(String repositoryPath, String outputDirectory,
-      String centralizedOutputPath, String documentName);
+  DocumentStateSnapshot load(String documentKey);
 
-  void save(String repositoryPath, String outputDirectory, String centralizedOutputPath,
-      String documentName, DocumentStateSnapshot snapshot);
+  void save(String documentKey, Map<String, SectionState> sectionsById);
 }

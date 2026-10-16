@@ -1,0 +1,134 @@
+id: error-manual-funcional
+name: Guia de Errores para Negocio
+version: 1.0.0
+status: active
+lifecycle: EVOLUTIONARY
+editorialReview: true
+description: >
+  Living guide that explains, in business language, what the service does, which errors users
+  and business areas can face, what to do about them and who to contact. It is the functional
+  companion of the operational error manual.
+
+skills:
+  - resumen-ejecutivo
+  - lenguaje-claro
+  - errores-para-negocio
+  - diagramas
+  - glosario
+  - trazabilidad-discreta
+
+audience: FUNCTIONAL_USERS
+audienceProfile:
+  displayName: Usuarios de negocio y areas funcionales
+  preferredLanguage: es
+  businessContext: Continuidad de los procesos de negocio y comunicacion con usuarios durante incidentes
+  decisionFocus: Entender el impacto en el negocio, que puede corregir el usuario y cuando escalar a soporte
+  primaryConcerns:
+    - Impacto en el negocio
+    - Procesos afectados
+    - Que puede hacer el usuario
+    - A quien acudir
+  excludedConcerns:
+    - Framework internals
+    - Stack trace details
+    - Low-level configuration mechanics
+  preferredEvidenceVisibility: translated
+
+communicationProfile:
+  profileId: error-guide-functional
+  narrativeStyle: BUSINESS_IMPACT
+  presentationMode: SUMMARY_FIRST
+  readingLevel: FUNCTIONAL
+  technicalAbstractionLevel: TRANSLATED
+  terminologyPolicy: BUSINESS_FRIENDLY
+  defaultLanguage: es
+  preferredTerms:
+    - proceso afectado
+    - impacto al usuario
+    - que hacer
+    - a quien acudir
+  forbiddenTerms:
+    - stack trace
+    - feignclient
+    - exception mapper
+    - framework internals
+
+globalRules:
+  - Never invent information; use only the evidence and structured knowledge provided.
+  - Write for business readers who do not know the code or the infrastructure.
+  - Keep technical names only as a reference for support teams, never as the main explanation.
+  - If information is missing, state exactly the missing data message.
+  - Respond as final document content only, without process narration.
+
+outputContract:
+  missingInformationText: No se encontro informacion sobre este punto en el codigo analizado.
+
+sections:
+  - id: summary
+    title: Que hace este servicio
+    objective: >
+      Explain in plain words what the service does, which business processes it supports, who
+      uses it and what happens to the business when it fails.
+    required: true
+    order: 1
+
+  - id: operations
+    title: Operaciones disponibles
+    objective: >
+      Describe the business operations exposed through the service API, grouped by business
+      process, explaining what each operation lets the user do.
+    required: true
+    order: 2
+    instructions:
+      - Use the API descriptions and operation names as the main source.
+      - Describe each operation as an action the business performs, not as a technical route.
+
+  - id: errors
+    title: Errores que puede encontrar el usuario
+    objective: >
+      Explain each error the user or the business area can face: what happens, when it
+      happens, its impact and what to do.
+    required: true
+    order: 3
+    instructions:
+      - Group errors by the business process they affect.
+      - Separate errors the user can fix from errors that need the support team.
+
+  - id: dependencies
+    title: Servicios de los que depende
+    objective: >
+      Explain which other services or systems this service depends on and how the business is
+      affected when one of them is not available.
+    required: true
+    order: 4
+
+  - id: limits
+    title: Limitaciones conocidas
+    objective: >
+      List the operations or options that are not available or only partially supported, as
+      evidenced, and what the business should do instead.
+    required: true
+    order: 5
+
+  - id: support
+    title: Que hacer y a quien acudir
+    objective: >
+      Tell business users what to check before reporting a problem, what information to share
+      and when to contact the support team.
+    required: true
+    order: 6
+
+  - id: glossary
+    title: Glosario
+    objective: >
+      Explain in plain words the technical terms, acronyms and system names used in this guide.
+    required: true
+    order: 7
+
+  - id: evidence
+    title: Indice de Evidencia
+    objective: >
+      Provide a compact index from each topic of the guide back to the evidence that supports
+      it.
+    required: true
+    order: 8

@@ -3,10 +3,8 @@ package com.pichincha.cdemsaspopenaidocumentation.documentation.template.domain;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.pichincha.cdemsaspopenaidocumentation.documentation.audience.domain
-  .AudienceType;
-import com.pichincha.cdemsaspopenaidocumentation.documentation.communication.domain
-  .NarrativeStyle;
+import com.pichincha.cdemsaspopenaidocumentation.documentation.audience.domain.AudienceType;
+import com.pichincha.cdemsaspopenaidocumentation.documentation.communication.domain.NarrativeStyle;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -26,14 +24,11 @@ class DocumentTemplateTest {
     assertEquals("name", template.name());
     assertEquals("0.0.0", template.version().value());
     assertEquals("sec-1", template.sections().get(0).id());
-    assertEquals("internal", template.metadata().source());
-    assertEquals(AudienceType.OPERATIONS, template.audiencePolicy().defaultAudience());
-    assertTrue(template.audienceProfiles().containsKey(AudienceType.SECURITY));
+    assertEquals("", template.metadata().checksum());
+    assertTrue(template.metadata().active());
+    assertEquals(AudienceType.OPERATIONS, template.reader().audience().audienceType());
     assertEquals(NarrativeStyle.OPERATIONAL,
-      template.defaultCommunicationProfile().narrativeStyle());
-    assertEquals(NarrativeStyle.BUSINESS_IMPACT,
-      template.communicationProfilesByAudience().get(AudienceType.FUNCTIONAL_USERS)
-        .narrativeStyle());
+        template.reader().communication().narrativeStyle());
   }
 
   @Test

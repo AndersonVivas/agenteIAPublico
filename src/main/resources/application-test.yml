@@ -3,7 +3,6 @@ app:
     username: ${CDE_GIT_USERNAME:}
     personal-access-token: ${CDE_GIT_PAT:}
   temporal:
-    enabled: ${CDE_TEMPORAL_ENABLED:true}
     server-target: ${CDE_TEMPORAL_SERVER_TARGET:temporal-server:7233}
 
 logging:

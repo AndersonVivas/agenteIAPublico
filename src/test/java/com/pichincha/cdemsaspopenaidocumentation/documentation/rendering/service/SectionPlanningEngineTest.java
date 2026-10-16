@@ -2,14 +2,13 @@ package com.pichincha.cdemsaspopenaidocumentation.documentation.rendering.servic
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.pichincha.cdemsaspopenaidocumentation.documentation.communication.domain.CommunicationProfile;
-import com.pichincha.cdemsaspopenaidocumentation.documentation.rendering.domain.AdaptedFinding;
-import com.pichincha.cdemsaspopenaidocumentation.documentation.rendering.domain.AdaptedKnowledge;
 import com.pichincha.cdemsaspopenaidocumentation.documentation.rendering.domain.SectionContext;
+import com.pichincha.cdemsaspopenaidocumentation.documentation.rendering.domain.SelectedKnowledge;
 import com.pichincha.cdemsaspopenaidocumentation.documentation.template.domain.DocumentTemplate;
 import com.pichincha.cdemsaspopenaidocumentation.documentation.template.domain.TemplateMetadata;
 import com.pichincha.cdemsaspopenaidocumentation.documentation.template.domain.TemplateSection;
 import com.pichincha.cdemsaspopenaidocumentation.documentation.template.domain.TemplateVersion;
+import com.pichincha.cdemsaspopenaidocumentation.knowledge.domain.KnowledgeFinding;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -22,11 +21,10 @@ class SectionPlanningEngineTest {
     DocumentTemplate template = new DocumentTemplate("id", "Ops",
         new TemplateVersion("1.0.0"), List.of(section()),
         TemplateMetadata.internal());
-    AdaptedKnowledge adapted = new AdaptedKnowledge(List.of(), List.of(), List.of(),
+    SelectedKnowledge selected = new SelectedKnowledge(List.of(), List.of(), List.of(),
         List.of());
 
-    List<SectionContext> sections = engine.plan(template, adapted,
-        CommunicationProfile.defaultProfile());
+    List<SectionContext> sections = engine.plan(template, selected);
 
     assertEquals(1, sections.size());
     assertEquals("No evidenciado en el escaneo.",
@@ -39,11 +37,10 @@ class SectionPlanningEngineTest {
     DocumentTemplate template = new DocumentTemplate("id", "Ops",
         new TemplateVersion("1.0.0"), List.of(section()),
         TemplateMetadata.internal());
-    AdaptedKnowledge adapted = new AdaptedKnowledge(List.of(apiFinding()),
+    SelectedKnowledge selected = new SelectedKnowledge(List.of(apiFinding()),
         List.of(), List.of(), List.of());
 
-    List<SectionContext> sections = engine.plan(template, adapted,
-        CommunicationProfile.defaultProfile());
+    List<SectionContext> sections = engine.plan(template, selected);
 
     assertEquals(1, sections.get(0).highlights().size());
     assertEquals("", sections.get(0).emptyStateMessage());
@@ -54,7 +51,8 @@ class SectionPlanningEngineTest {
         1);
   }
 
-  private AdaptedFinding apiFinding() {
-    return new AdaptedFinding("f1", "api", "high", "t", "summary", List.of());
+  private KnowledgeFinding apiFinding() {
+    return new KnowledgeFinding("f1", "api", "key", "title", "summary", "high", 0.9,
+        List.of());
   }
 }

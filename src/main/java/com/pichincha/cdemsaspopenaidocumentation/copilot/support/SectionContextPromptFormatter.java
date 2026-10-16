@@ -33,6 +33,9 @@ public final class SectionContextPromptFormatter {
         .append(" | obligatoria: ").append(section.required())
         .append(" | orden: ").append(section.order())
         .append(" | modo de presentacion: ").append(section.presentationMode());
+    if (!section.instructions().isEmpty()) {
+      builder.append("\n  instrucciones: ").append(String.join(" ; ", section.instructions()));
+    }
     if (!section.highlights().isEmpty()) {
       builder.append("\n  pistas conocidas: ").append(String.join(" ; ", section.highlights()));
     }

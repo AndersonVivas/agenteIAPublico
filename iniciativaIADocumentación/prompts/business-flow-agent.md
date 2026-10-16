@@ -19,12 +19,18 @@ Analiza exclusivamente: {{objective}}.
 {{sections}}
 
 ## Instrucciones
-1. No inventes información que no esté respaldada por la evidencia anterior.
-2. Prioriza el lenguaje de negocio: qué proceso soporta el código, qué regla aplica y
+1. Trabaja solo con la evidencia de este prompt: no ejecutes herramientas, no leas
+   archivos ni repositorios y no busques información externa.
+2. Usa el `texto` y el `contexto` (líneas cercanas del código) de cada evidencia para
+   entender cuándo y por qué ocurre lo que describe.
+3. No inventes información que no esté respaldada por la evidencia anterior.
+4. Prioriza el lenguaje de negocio: qué proceso soporta el código, qué regla aplica y
    qué efecto tiene para el usuario final o el área dueña del proceso.
-3. Cada hallazgo debe citar los `id` de evidencia que lo sustentan en `evidenceIds`.
-4. Si no hay evidencia suficiente para una sección, repórtalo en `gaps`.
-5. Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, sin bloques de
+5. Cada hallazgo debe citar los `id` de evidencia que lo sustentan en `evidenceIds`.
+6. Si no hay evidencia suficiente para una sección, repórtalo en `gaps`.
+7. Escribe `businessSummary` en lenguaje claro y sin jerga técnica: qué significa para
+   el negocio o el usuario final.
+8. Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, sin bloques de
    código Markdown, con esta forma exacta:
 
 ```json

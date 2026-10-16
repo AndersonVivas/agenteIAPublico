@@ -2,27 +2,16 @@ package com.pichincha.cdemsaspopenaidocumentation.copilot.domain;
 
 import com.pichincha.cdemsaspopenaidocumentation.documentation.rendering.domain.SectionContext;
 import java.util.List;
+import java.util.Objects;
 
 public record TemplateRenderRequest(
-    DocumentationGenerationContext generationContext,
-    ResolvedTemplateContext resolvedTemplateContext,
+    DocumentContext documentContext,
     List<SectionContext> impactedSections,
-    ConsolidatedKnowledge consolidatedKnowledge,
-    OutputContract outputContract) {
+    ConsolidatedKnowledge consolidatedKnowledge) {
 
   public TemplateRenderRequest {
-    if (generationContext == null) {
-      throw new IllegalArgumentException("Generation context is required.");
-    }
-    if (resolvedTemplateContext == null) {
-      throw new IllegalArgumentException("Resolved template context is required.");
-    }
-    if (consolidatedKnowledge == null) {
-      throw new IllegalArgumentException("Consolidated knowledge is required.");
-    }
-    if (outputContract == null) {
-      throw new IllegalArgumentException("Output contract is required.");
-    }
+    Objects.requireNonNull(documentContext, "Document context is required.");
+    Objects.requireNonNull(consolidatedKnowledge, "Consolidated knowledge is required.");
     impactedSections = impactedSections == null ? List.of() : List.copyOf(impactedSections);
   }
 }

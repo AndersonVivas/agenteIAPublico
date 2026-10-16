@@ -4,171 +4,228 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.pichincha.cdemsaspopenaidocumentation.domain.CodeScanSummary;
+import com.pichincha.cdemsaspopenaidocumentation.domain.CodeSignalEvidence;
+import com.pichincha.cdemsaspopenaidocumentation.helper.EvidenceFactory;
+import com.pichincha.cdemsaspopenaidocumentation.helper.FileTypeResolver;
+import com.pichincha.cdemsaspopenaidocumentation.helper.SignalClassifier;
+import com.pichincha.cdemsaspopenaidocumentation.helper.SourceFileReader;
+import com.pichincha.cdemsaspopenaidocumentation.helper.SymbolLocator;
+import com.pichincha.cdemsaspopenaidocumentation.service.detector.ApiDocumentationSignalDetector;
+import com.pichincha.cdemsaspopenaidocumentation.service.detector.ApiSignalDetector;
+import com.pichincha.cdemsaspopenaidocumentation.service.detector.ConfigSignalDetector;
+import com.pichincha.cdemsaspopenaidocumentation.service.detector.DatabaseSignalDetector;
+import com.pichincha.cdemsaspopenaidocumentation.service.detector.DependencySignalDetector;
+import com.pichincha.cdemsaspopenaidocumentation.service.detector.ErrorCatalogSignalDetector;
+import com.pichincha.cdemsaspopenaidocumentation.service.detector.ExceptionSignalDetector;
+import com.pichincha.cdemsaspopenaidocumentation.service.detector.ServiceOverviewSignalDetector;
+import com.pichincha.cdemsaspopenaidocumentation.service.detector.SignalDetector;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class RepositoryCodeScanServiceTest {
 
-  @Test
-  void scanRepositoryShouldCountSourceArtifacts() throws Exception {
-    Path repository = Files.createTempDirectory("scan-test");
-    Files.createDirectories(repository.resolve("src/main/java"));
-    Files.createDirectories(repository.resolve("docs"));
-    Files.writeString(repository.resolve("src/main/java/App.java"), "class App {}");
-    Files.writeString(repository.resolve("application.yml"), "spring:\n  app: test");
-    Files.writeString(repository.resolve("docs/readme.md"), "# test");
-    Files.writeString(repository.resolve("docs/values.yaml"), "name: value");
+  private final RepositoryCodeScanService service = scanService();
 
-    RepositoryCodeScanService service = new RepositoryCodeScanService();
-    CodeScanSummary summary = service.scanRepository(repository.toString());
-
-    assertEquals(4L, summary.totalFiles());
-    assertEquals(1L, summary.javaFiles());
-    assertEquals(2L, summary.yamlFiles());
-    assertEquals(1L, summary.markdownFiles());
-    assertEquals(1L, summary.filesByLanguage().get("java"));
-    assertEquals(2L, summary.filesByLanguage().get("yaml"));
-    assertEquals(1L, summary.filesByExtension().get("md"));
-    assertEquals("FULL", summary.metadata().scanMode());
-    assertFalse(summary.scanId().isBlank());
-    assertFalse(summary.repositoryFingerprint().isBlank());
-    assertTrue(summary.scanTimestamp() != null);
-    assertEquals(summary.repositoryFingerprint(), summary.metadata().repositoryFingerprint());
-  }
+  @TempDir
+  private Path repository;
 
   @Test
-  void scanRepositoryShouldExtractApiDatabaseAndExceptionIndicators() throws Exception {
-    Path repository = Files.createTempDirectory("scan-indicators-test");
-    Files.createDirectories(repository.resolve("src/main/java/com/example/controller"));
-    Files.createDirectories(repository.resolve("src/main/resources"));
-    Files.writeString(repository.resolve("src/main/java/com/example/controller/AppController.java"),
-        "@RequestMapping(\"/api/v1\")\n"
-            + "class AppController {\n"
+  void scanFilesShouldExtractEverySignalTypeWithCompleteEvidence() throws IOException {
+    List<String> files = write(Map.of(
+        "src/main/java/com/example/controller/AppController.java",
+        "@RequestMapping(\"/api/v1\")\nclass AppController {\n"
             + "  @GetMapping(\"/customers\")\n"
-            + "  void method() { throw new IllegalArgumentException(); }\n"
-            + "}");
-    Files.writeString(repository.resolve("src/main/java/com/example/UserEntity.java"),
-        "@Entity class UserEntity {}");
-    Files.writeString(repository.resolve("src/main/resources/application.yml"),
+            + "  void method() { throw new IllegalArgumentException(); }\n}",
+        "src/main/java/com/example/UserEntity.java", "@Entity class UserEntity {}",
+        "src/main/resources/application.yml",
         "spring:\n  datasource:\n    url: ${DB_URL:jdbc:postgresql://localhost:5432/test}\n"
-            + "app:\n  timeout: 5000");
-    Files.writeString(repository.resolve("src/main/resources/openapi.yml"),
-        "info:\n  description: redistribution rules for cash");
+            + "app:\n  timeout: 5000"));
 
-    RepositoryCodeScanService service = new RepositoryCodeScanService();
-    CodeScanSummary summary = service.scanRepository(repository.toString());
+    List<CodeSignalEvidence> evidences = service.scanFiles(repository, files, "scan-1");
 
-    assertTrue(summary.apiIndicators().stream().anyMatch(value -> value.contains("@GetMapping")));
-    assertTrue(summary.databaseIndicators().stream().anyMatch(value -> value.contains("jdbc:")));
-    assertTrue(summary.databaseIndicators().stream().anyMatch(value -> value.contains("@Entity")));
-    assertTrue(summary.exceptionIndicators().stream()
-        .anyMatch(value -> value.contains("throw new")));
-    assertFalse(summary.databaseIndicators().stream()
-        .anyMatch(value -> value.toLowerCase().contains("redistribution")));
-    assertFalse(summary.evidences().isEmpty());
-    assertTrue(summary.evidences().stream().anyMatch(value -> value.signalType().equals("API")));
-    assertTrue(summary.evidences().stream()
-        .anyMatch(value -> value.signalType().equals("DATABASE")));
-    assertTrue(summary.evidences().stream()
-        .anyMatch(value -> value.signalType().equals("EXCEPTION")));
-    assertTrue(summary.evidences().stream().anyMatch(value -> value.signalType().equals("CONFIG")));
-    assertTrue(summary.evidences().stream()
-      .anyMatch(value -> value.signalType().equals("DEPENDENCY")));
-    assertTrue(summary.evidences().stream()
-      .allMatch(value -> !value.snippet().isEmpty() && value.startLine() <= value.endLine()));
-    assertTrue(summary.evidences().stream().allMatch(value -> !value.matchedRule().isBlank()));
-    assertTrue(summary.evidences().stream().allMatch(value -> !value.matchText().isBlank()));
-    assertTrue(summary.evidences().stream().allMatch(value -> !value.language().isBlank()));
-    assertTrue(summary.evidences().stream().allMatch(value -> !value.sourceKind().isBlank()));
-    assertTrue(summary.evidences().stream().allMatch(value -> !value.ruleId().isBlank()));
-    assertTrue(summary.evidences().stream().allMatch(value -> !value.severityHint().isBlank()));
-    assertTrue(summary.evidences().stream().allMatch(value -> !value.runtimeSurface().isBlank()));
-    assertTrue(summary.evidences().stream()
-        .allMatch(value -> !value.dependencySurface().isEmpty()));
-    assertTrue(summary.evidences().stream().allMatch(value -> !value.scopeSymbol().isBlank()));
-    assertTrue(summary.evidences().stream().allMatch(value -> !value.evidenceId().isBlank()));
-    assertTrue(summary.evidences().stream()
-        .allMatch(value -> value.scanId().equals(summary.scanId())));
-    assertTrue(summary.evidences().stream().allMatch(value -> !value.probableCause().isBlank()));
-    assertTrue(summary.evidences().stream().allMatch(value -> !value.recoveryAction().isBlank()));
-    assertTrue(summary.apiIndicators().stream()
-      .allMatch(value -> value.contains("id=") && value.contains("ruleId=")
-          && value.contains("lang=") && value.contains("rule=")
-          && value.contains("scope=") && value.contains("symbol=")));
-    assertEquals(summary.apiIndicators().size(), summary.metadata().apiSignalsExtracted());
-    assertEquals(summary.databaseIndicators().size(),
-      summary.metadata().databaseSignalsExtracted());
-    assertEquals(summary.exceptionIndicators().size(),
-      summary.metadata().exceptionSignalsExtracted());
-    assertTrue(summary.metadata().configSignalsExtracted() >= 1L);
-    assertTrue(summary.metadata().dependencySignalsExtracted() >= 1L);
-    assertTrue(summary.metadata().elapsedMs() >= 0L);
-    assertTrue(summary.metadata().filesScanned() >= 1L);
+    assertTrue(List.of("API", "DATABASE", "EXCEPTION", "CONFIG", "DEPENDENCY").stream()
+        .allMatch(type -> evidences.stream().anyMatch(item -> item.signalType().equals(type))));
+    assertTrue(evidences.stream().allMatch(item -> item.scanId().equals("scan-1")
+        && item.evidenceId().startsWith("EV-") && !item.snippet().isEmpty()
+        && !item.ruleId().isBlank() && !item.scopeSymbol().isBlank()
+        && !item.dependencySurface().isEmpty() && !item.recoveryAction().isBlank()));
   }
 
   @Test
-  void scanRepositoryShouldFilterCommentLinesInDependencies() throws Exception {
-    Path repository = Files.createTempDirectory("scan-comments-test");
-    Files.createDirectories(repository.resolve("src/main/java"));
-    Files.writeString(repository.resolve("src/main/java/Service.java"),
-        "// https://ignore.example.com\n"
-            + "# https://ignore-hash.com\n"
-            + "/* https://ignore-block.com */\n"
-            + "String kafka = \"events\";\n");
-    RepositoryCodeScanService service = new RepositoryCodeScanService();
-    CodeScanSummary summary = service.scanRepository(repository.toString());
-    assertFalse(summary.evidences().stream()
-        .anyMatch(e -> e.matchText().contains("ignore.example.com")));
-    assertFalse(summary.evidences().stream()
-        .anyMatch(e -> e.matchText().contains("ignore-hash.com")));
-    assertTrue(summary.evidences().stream()
-        .anyMatch(e -> e.signalType().equals("DEPENDENCY") && e.matchText().contains("kafka")));
+  void scanFilesShouldOnlyScanRequestedFiles() throws IOException {
+    write(Map.of("src/main/java/Ignored.java", "throw new IllegalStateException();",
+        "src/main/java/Scanned.java", "throw new IllegalArgumentException();"));
+
+    List<CodeSignalEvidence> evidences = service.scanFiles(repository,
+        List.of("src/main/java/Scanned.java"), "scan-1");
+
+    assertTrue(evidences.stream()
+        .allMatch(item -> item.filePath().equals("src/main/java/Scanned.java")));
+    assertFalse(evidences.isEmpty());
   }
 
   @Test
-  void scanRepositoryShouldFilterTrivialConfigMatches() throws Exception {
-    Path repository = Files.createTempDirectory("scan-config-test");
-    Files.createDirectories(repository.resolve("src/main/resources"));
-    Files.writeString(repository.resolve("src/main/resources/application.yml"),
-        "short: ${}\n"
-            + "tiny: ${a}\n"
-            + "valid_timeout: 5000\n"
-            + "env: ${DATABASE_URL:localhost}\n");
-    RepositoryCodeScanService service = new RepositoryCodeScanService();
-    CodeScanSummary summary = service.scanRepository(repository.toString());
-    assertFalse(summary.evidences().stream()
-        .anyMatch(e -> e.signalType().equals("CONFIG") && e.matchText().length() < 8));
-    assertTrue(summary.evidences().stream()
-        .anyMatch(e -> e.signalType().equals("CONFIG") && e.matchText().contains("DATABASE_URL")));
+  void scanFilesShouldFilterCommentLinesInDependencies() throws IOException {
+    List<String> files = write(Map.of("src/main/java/Service.java",
+        "// https://ignore.example.com\n# https://ignore-hash.com\n"
+            + "/* https://ignore-block.com */\nString kafka = \"events\";\n"));
+
+    List<CodeSignalEvidence> evidences = service.scanFiles(repository, files, "scan-1");
+
+    assertFalse(evidences.stream().anyMatch(item -> item.matchText().contains("ignore")));
+    assertTrue(evidences.stream().anyMatch(item -> item.signalType().equals("DEPENDENCY")
+        && item.matchText().contains("kafka")));
   }
 
   @Test
-  void scanRepositoryShouldDetectExpandedTechnologies() throws Exception {
-    Path repository = Files.createTempDirectory("scan-tech-test");
-    Files.createDirectories(repository.resolve("k8s"));
-    Files.createDirectories(repository.resolve("src/main/java"));
-    Files.writeString(repository.resolve("Dockerfile"), "FROM openjdk:25\n");
-    Files.writeString(repository.resolve("k8s/deployment.yaml"), "kind: Deployment\nredis: 6379\n");
-    Files.writeString(repository.resolve("src/main/java/Cloud.java"),
-        "String azure = \"azure-blob\";\nString aws = \"aws-sqs\";\n");
-    RepositoryCodeScanService service = new RepositoryCodeScanService();
-    CodeScanSummary summary = service.scanRepository(repository.toString());
-    assertTrue(summary.evidences().stream().anyMatch(e -> e.technology().equals("azure")));
-    assertTrue(summary.evidences().stream().anyMatch(e -> e.technology().equals("aws")));
-    assertTrue(summary.evidences().stream().anyMatch(e -> e.technology().equals("kubernetes")));
+  void scanFilesShouldFilterTrivialConfigMatches() throws IOException {
+    List<String> files = write(Map.of("src/main/resources/application.yml",
+        "short: ${}\ntiny: ${a}\nvalid_timeout: 5000\nenv: ${DATABASE_URL:localhost}\n"));
+
+    List<CodeSignalEvidence> evidences = service.scanFiles(repository, files, "scan-1");
+
+    assertFalse(evidences.stream().anyMatch(item -> item.signalType().equals("CONFIG")
+        && item.matchText().length() < 8));
+    assertTrue(evidences.stream().anyMatch(item -> item.signalType().equals("CONFIG")
+        && item.matchText().contains("DATABASE_URL")));
   }
 
   @Test
-  void scanRepositoryShouldGenerateDeterministicFingerprintAndUniqueScanIds() throws Exception {
-    Path repository = Files.createTempDirectory("scan-fingerprint-test");
-    Files.writeString(repository.resolve("README.md"), "# Title\n");
-    RepositoryCodeScanService service = new RepositoryCodeScanService();
-    CodeScanSummary scan1 = service.scanRepository(repository.toString());
-    CodeScanSummary scan2 = service.scanRepository(repository.toString());
-    assertEquals(scan1.repositoryFingerprint(), scan2.repositoryFingerprint());
-    assertFalse(scan1.scanId().equals(scan2.scanId()));
-    assertTrue(scan1.scanTimestamp() != null);
+  void scanFilesShouldDetectExpandedTechnologies() throws IOException {
+    List<String> files = write(Map.of("k8s/deployment.yaml", "kind: Deployment\nredis: 6379\n",
+        "src/main/java/Cloud.java", "String azure = \"azure-blob\";\nString aws = \"aws-sqs\";\n"));
+
+    List<CodeSignalEvidence> evidences = service.scanFiles(repository, files, "scan-1");
+
+    assertTrue(List.of("azure", "aws", "kubernetes").stream().allMatch(technology ->
+        evidences.stream().anyMatch(item -> item.technology().equals(technology))));
+  }
+
+  @Test
+  void scanFilesShouldReadConfigurationFormatsDeclaredByTheConfigRule() throws IOException {
+    List<String> files = write(Map.of("config/app.toml", "timeout = 3000 # payments\n",
+        "config/.env.conf", "retry_attempts=3 for payments\n"));
+
+    List<CodeSignalEvidence> evidences = service.scanFiles(repository, files, "scan-1");
+
+    assertEquals(2, evidences.stream().filter(item -> item.signalType().equals("CONFIG"))
+        .count());
+  }
+
+  @Test
+  void scanFilesShouldProduceStableEvidenceIdsForUnchangedContent() throws IOException {
+    List<String> files = write(Map.of("src/main/java/Api.java", "@GetMapping(\"/payments\")"));
+
+    List<String> first = ids(service.scanFiles(repository, files, "scan-1"));
+    List<String> second = ids(service.scanFiles(repository, files, "scan-2"));
+
+    assertEquals(first, second);
+  }
+
+  @Test
+  void isScannableShouldSkipIgnoredDirectoriesAndBinaryFiles() {
+    assertTrue(service.isScannable("src/main/java/App.java"));
+    assertFalse(service.isScannable("build/generated/App.java"));
+    assertFalse(service.isScannable("node_modules/lib/index.js"));
+    assertFalse(service.isScannable("docs/diagram.png"));
+  }
+
+  @Test
+  void scanFilesShouldCaptureOpenApiBusinessDescriptionsExceptBlockScalars() throws IOException {
+    List<String> files = write(Map.of("src/main/resources/openapi.yaml", """
+        info:
+          title: Payments API
+          description: |
+            Multi line text
+        paths:
+          /payments:
+            post:
+              summary: Registers a customer payment
+              operationId: createPayment
+        """));
+
+    List<String> descriptions = matchTexts(service.scanFiles(repository, files, "scan-1"),
+        "API_OPENAPI_DOCUMENTATION");
+
+    assertEquals(List.of("operationId: createPayment", "summary: Registers a customer payment",
+        "title: Payments API"), descriptions);
+  }
+
+  @Test
+  void scanFilesShouldCaptureErrorCatalogMessages() throws IOException {
+    List<String> files = write(Map.of(
+        "src/main/java/com/example/ErrorCode.java", """
+            public enum ErrorCode {
+              CUSTOMER_NOT_FOUND("CUS-404", "The customer does not exist"),
+              INVALID("x");
+            }
+            """,
+        "src/main/resources/messages.properties", """
+            # payment.ignored=This comment must not be captured
+            payment.rejected=The payment was rejected by the bank
+            """));
+
+    List<String> messages = matchTexts(service.scanFiles(repository, files, "scan-1"),
+        "EXCEPTION_MESSAGE_CATALOG");
+
+    assertEquals(List.of(
+        "CUSTOMER_NOT_FOUND(\"CUS-404\", \"The customer does not exist\"),",
+        "payment.rejected=The payment was rejected by the bank"), messages);
+  }
+
+  @Test
+  void scanFilesShouldCaptureServicePurposeFromReadmeAndDescriptor() throws IOException {
+    List<String> files = write(Map.of(
+        "README.md", """
+            # Payments Service
+            Registers and settles customer payments.
+            ```bash
+            echo "code must be skipped"
+            ```
+            ![diagram](docs/diagram.png)
+            """,
+        "pom.xml", "<project>\n  <description>Retail payments service</description>\n"
+            + "</project>"));
+
+    List<CodeSignalEvidence> overview = service.scanFiles(repository, files, "scan-1").stream()
+        .filter(item -> item.signalType().equals("BUSINESS_CONTEXT"))
+        .toList();
+
+    assertEquals(List.of("# Payments Service", "Registers and settles customer payments.",
+        "<description>Retail payments service</description>"),
+        overview.stream().map(CodeSignalEvidence::matchText).toList());
+  }
+
+  private static RepositoryCodeScanService scanService() {
+    FileTypeResolver fileTypeResolver = new FileTypeResolver();
+    List<SignalDetector> detectors = List.of(new ApiSignalDetector(),
+        new DatabaseSignalDetector(), new ExceptionSignalDetector(), new ConfigSignalDetector(),
+        new DependencySignalDetector(), new ApiDocumentationSignalDetector(),
+        new ErrorCatalogSignalDetector(), new ServiceOverviewSignalDetector());
+    return new RepositoryCodeScanService(detectors, new SourceFileReader(fileTypeResolver),
+        fileTypeResolver, new EvidenceFactory(new SymbolLocator(), new SignalClassifier()));
+  }
+
+  private List<String> matchTexts(List<CodeSignalEvidence> evidences, String matchedRule) {
+    return evidences.stream().filter(item -> item.matchedRule().equals(matchedRule))
+        .map(CodeSignalEvidence::matchText).sorted().toList();
+  }
+
+  private List<String> write(Map<String, String> files) throws IOException {
+    for (Map.Entry<String, String> file : files.entrySet()) {
+      Path path = repository.resolve(file.getKey());
+      Files.createDirectories(path.getParent());
+      Files.writeString(path, file.getValue());
+    }
+    return List.copyOf(files.keySet());
+  }
+
+  private List<String> ids(List<CodeSignalEvidence> evidences) {
+    return evidences.stream().map(CodeSignalEvidence::evidenceId).sorted().toList();
   }
 }

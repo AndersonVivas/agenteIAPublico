@@ -4,8 +4,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * Per-agent model configuration, one entry per specialist, consolidation and renderer
- * agent. Every agent calls the Copilot CLI with its own model, enabling cheap models for
+ * Per-agent model configuration, one entry per specialist, consolidation, renderer and
+ * editor agent. Every agent calls the Copilot CLI with its own model, enabling cheap models for
  * narrow extraction tasks and a stronger model only where synthesis quality matters.
  */
 @ConfigurationProperties(prefix = "documentation.agents")
@@ -17,7 +17,8 @@ public record DocumentationAgentsProperties(
     AgentModel exceptions,
     AgentModel business,
     AgentModel consolidation,
-    AgentModel renderer) {
+    AgentModel renderer,
+    AgentModel editor) {
 
   private static final String DEFAULT_SPECIALIST_MODEL = "gpt-5-mini";
   private static final String DEFAULT_SYNTHESIS_MODEL = "gpt-5";
@@ -31,6 +32,7 @@ public record DocumentationAgentsProperties(
     business = defaulted(business, DEFAULT_SPECIALIST_MODEL);
     consolidation = defaulted(consolidation, DEFAULT_SYNTHESIS_MODEL);
     renderer = defaulted(renderer, DEFAULT_SYNTHESIS_MODEL);
+    editor = defaulted(editor, DEFAULT_SYNTHESIS_MODEL);
   }
 
   private static AgentModel defaulted(AgentModel configured, String defaultModel) {

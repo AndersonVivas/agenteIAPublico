@@ -1,120 +1,164 @@
 package com.pichincha.cdemsaspopenaidocumentation.copilot.impl;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.pichincha.cdemsaspopenaidocumentation.copilot.DocumentationSkillRepository;
+import com.pichincha.cdemsaspopenaidocumentation.copilot.EditorialReviewAgent;
+import com.pichincha.cdemsaspopenaidocumentation.copilot.TemplateRenderAgent;
 import com.pichincha.cdemsaspopenaidocumentation.copilot.domain.DocumentContext;
-import com.pichincha.cdemsaspopenaidocumentation.copilot.domain.DocumentTemplateType;
-import com.pichincha.cdemsaspopenaidocumentation.copilot.domain.DocumentationGenerationContext;
-import com.pichincha.cdemsaspopenaidocumentation.documentation.audience.domain.AudienceProfile;
+import com.pichincha.cdemsaspopenaidocumentation.copilot.domain.DocumentationSkill;
+import com.pichincha.cdemsaspopenaidocumentation.copilot.domain.EditorialReviewRequest;
+import com.pichincha.cdemsaspopenaidocumentation.copilot.domain.TemplateRenderRequest;
 import com.pichincha.cdemsaspopenaidocumentation.documentation.audience.domain.AudienceType;
-import com.pichincha.cdemsaspopenaidocumentation.documentation.audience.service.AudienceProfileResolver;
-import com.pichincha.cdemsaspopenaidocumentation.documentation.communication.domain.CommunicationProfile;
-import com.pichincha.cdemsaspopenaidocumentation.documentation.communication.service.CommunicationProfileResolver;
 import com.pichincha.cdemsaspopenaidocumentation.documentation.rendering.TemplateRenderer;
 import com.pichincha.cdemsaspopenaidocumentation.documentation.rendering.domain.RenderingPlan;
 import com.pichincha.cdemsaspopenaidocumentation.documentation.template.domain.DocumentTemplate;
+import com.pichincha.cdemsaspopenaidocumentation.documentation.template.domain.ReaderProfile;
+import com.pichincha.cdemsaspopenaidocumentation.documentation.template.domain.TemplateGuidance;
 import com.pichincha.cdemsaspopenaidocumentation.documentation.template.domain.TemplateMetadata;
-import com.pichincha.cdemsaspopenaidocumentation.documentation.template.domain.TemplateResolutionResult;
 import com.pichincha.cdemsaspopenaidocumentation.documentation.template.domain.TemplateVersion;
-import com.pichincha.cdemsaspopenaidocumentation.documentation.template.port.TemplateRepository;
+import com.pichincha.cdemsaspopenaidocumentation.domain.enums.DocumentLifecycleEnum;
 import com.pichincha.cdemsaspopenaidocumentation.knowledge.domain.ProjectKnowledgeBase;
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class DocumentContextFactoryTest {
 
+  private final CapturingRenderer renderer = new CapturingRenderer();
+  private final InMemorySkillRepository skillRepository = new InMemorySkillRepository();
+  private final FixedSignatureEditorialAgent editorialAgent = new FixedSignatureEditorialAgent();
+  private final DocumentContextFactory factory = new DocumentContextFactory(renderer,
+      new FixedSignatureRenderAgent(), editorialAgent, skillRepository);
+
   @Test
-  void shouldBuildDocumentContextAndUseTemplateRenderer() {
-    CapturingRenderer renderer = new CapturingRenderer();
-    DocumentContextFactory factory = new DocumentContextFactory(repository(),
-        new AudienceProfileResolver(), new CommunicationProfileResolver(), renderer);
+  void createShouldBuildRenderingPlanForTheTemplate() {
+    DocumentContext context = create(template("checksum-1", false));
 
-    DocumentContext context = factory.create(generationContext(), knowledgeBase(),
-      "error-manual");
-
-    assertEquals(DocumentTemplateType.TECHNICAL_DOCUMENTATION,
-      context.templateType());
-    assertEquals("error-manual", context.resolvedTemplateContext().template().id());
-    assertEquals(AudienceType.OPERATIONS,
-        context.resolvedTemplateContext().audienceProfile().audienceType());
     assertTrue(renderer.called);
-    assertEquals("api-doc", context.renderingPlan().templateId());
+    assertEquals("error-manual", context.template().id());
+    assertEquals(DocumentLifecycleEnum.HISTORICAL, context.lifecycle());
   }
 
   @Test
-  void shouldResolveTechnicalAudienceForDevelopers() {
-    CapturingRenderer renderer = new CapturingRenderer();
-    DocumentContextFactory factory = new DocumentContextFactory(repository(),
-        new AudienceProfileResolver(), new CommunicationProfileResolver(), renderer);
+  void createShouldTakeOutputContractFromTemplateGuidanceAndReader() {
+    DocumentContext context = create(template("checksum-1", false));
 
-    DocumentContext context = factory.create(generationContext(), knowledgeBase(),
-      "error-manual", AudienceType.DEVELOPERS);
-
-    assertEquals(AudienceType.DEVELOPERS,
-        context.resolvedTemplateContext().audienceProfile().audienceType());
-    assertEquals("en", context.outputContract().outputLanguage());
+    assertEquals("es", context.outputContract().outputLanguage());
+    assertEquals("Sin datos.", context.outputContract().missingDataMessage());
+    assertEquals(List.of("Never invent information."), context.outputContract().rules());
   }
 
   @Test
-  void shouldResolveFunctionalAudience() {
-    CapturingRenderer renderer = new CapturingRenderer();
-    DocumentContextFactory factory = new DocumentContextFactory(repository(),
-        new AudienceProfileResolver(), new CommunicationProfileResolver(), renderer);
+  void createShouldUseTheLanguageOfTheTemplateReader() {
+    DocumentTemplate template = new DocumentTemplate("api-guide", "API Guide",
+        new TemplateVersion("1.0.0"), List.of(), TemplateMetadata.internal(),
+        TemplateGuidance.defaults(), ReaderProfile.defaultFor(AudienceType.DEVELOPERS));
 
-    DocumentContext context = factory.create(generationContext(), knowledgeBase(),
-      "error-manual", AudienceType.FUNCTIONAL_USERS);
-
-    assertEquals(AudienceType.FUNCTIONAL_USERS,
-        context.resolvedTemplateContext().audienceProfile().audienceType());
-    assertTrue(context.outputContract().objective().contains("verified knowledge"));
+    assertEquals("en", create(template).outputContract().outputLanguage());
   }
 
-  private TemplateRepository repository() {
-    DocumentTemplate template = new DocumentTemplate("error-manual", "Error Manual",
-        new TemplateVersion("1.0.0"), List.of(), TemplateMetadata.internal());
-    return new TemplateRepository() {
-      @Override
-      public Optional<TemplateResolutionResult> resolveActive(String templateId) {
-        return Optional.of(TemplateResolutionResult.resolved(template, "catalog"));
-      }
+  @Test
+  void createShouldChangeRenderSignatureWhenTemplateContentChanges() {
+    DocumentContext first = create(template("checksum-1", false));
+    DocumentContext second = create(template("checksum-2", false));
 
-      @Override
-      public Optional<TemplateResolutionResult> resolveVersion(String templateId,
-          TemplateVersion version) {
-        return Optional.empty();
-      }
-
-      @Override
-      public List<TemplateResolutionResult> searchByName(String templateName) {
-        return List.of();
-      }
-    };
+    assertNotEquals(first.renderSignature(), second.renderSignature());
   }
 
-  private DocumentationGenerationContext generationContext() {
-    return new DocumentationGenerationContext("scan-1", "repo", "/tmp/repo",
-        "org", "proj", 1L, null);
+  @Test
+  void createShouldLoadTemplateSkills() {
+    DocumentContext context = create(template("checksum-1", false));
+
+    assertEquals(List.of("lenguaje-claro"), skillRepository.requestedNames);
+    assertEquals("lenguaje-claro", context.skills().getFirst().name());
   }
 
-  private ProjectKnowledgeBase knowledgeBase() {
-    return new ProjectKnowledgeBase(null, null, null, null, null, null,
-        List.of(), List.of(), null);
+  @Test
+  void createShouldChangeRenderSignatureWhenSkillInstructionsChange() {
+    DocumentContext first = create(template("checksum-1", false));
+    skillRepository.instructions = "Use short sentences and explain acronyms.";
+    DocumentContext second = create(template("checksum-1", false));
+
+    assertNotEquals(first.renderSignature(), second.renderSignature());
   }
 
-  private static class CapturingRenderer implements TemplateRenderer {
+  @Test
+  void createShouldIncludeTheEditorialSignatureOnlyWhenTheReviewIsEnabled() {
+    String withoutReview = create(template("checksum-1", false)).renderSignature();
+    String withReview = create(template("checksum-1", true)).renderSignature();
+    editorialAgent.signature = "editor-v2";
+
+    assertEquals(withoutReview, create(template("checksum-1", false)).renderSignature());
+    assertNotEquals(withReview, create(template("checksum-1", true)).renderSignature());
+  }
+
+  private DocumentContext create(DocumentTemplate template) {
+    return factory.create(TestDocumentationContextFactory.context(),
+        new ProjectKnowledgeBase(null, null, null, null, null, null, List.of(), List.of()),
+        template);
+  }
+
+  private DocumentTemplate template(String checksum, boolean editorialReview) {
+    TemplateGuidance guidance = new TemplateGuidance(DocumentLifecycleEnum.HISTORICAL,
+        List.of("Never invent information."), "Sin datos.", List.of("lenguaje-claro"),
+        editorialReview);
+    return new DocumentTemplate("error-manual", "Error Manual", new TemplateVersion("1.0.0"),
+        List.of(), new TemplateMetadata(checksum, null), guidance);
+  }
+
+  private static final class CapturingRenderer implements TemplateRenderer {
 
     private boolean called;
 
     @Override
-    public RenderingPlan render(ProjectKnowledgeBase knowledgeBase,
-        DocumentTemplate template, AudienceProfile audienceProfile,
-        CommunicationProfile communicationProfile) {
+    public RenderingPlan render(ProjectKnowledgeBase knowledgeBase, DocumentTemplate template) {
       called = true;
-      return new RenderingPlan("api-doc", "Api", new TemplateVersion("1.0.0"),
-          AudienceType.OPERATIONS, "operations-default", "x", List.of(),
-          List.of(), List.of(), java.util.Map.of(), List.of());
+      return new RenderingPlan(List.of(), List.of(), List.of(), List.of());
+    }
+  }
+
+  private static final class InMemorySkillRepository implements DocumentationSkillRepository {
+
+    private List<String> requestedNames;
+    private String instructions = "Use short sentences.";
+
+    @Override
+    public List<DocumentationSkill> findAll(List<String> skillNames) {
+      requestedNames = skillNames;
+      return skillNames.stream()
+          .map(name -> new DocumentationSkill(name, "Plain language", instructions))
+          .toList();
+    }
+  }
+
+  private static final class FixedSignatureRenderAgent implements TemplateRenderAgent {
+
+    @Override
+    public Map<String, String> render(TemplateRenderRequest request) {
+      return Map.of();
+    }
+
+    @Override
+    public String renderSignature() {
+      return "render-signature";
+    }
+  }
+
+  private static final class FixedSignatureEditorialAgent implements EditorialReviewAgent {
+
+    private String signature = "editor-v1";
+
+    @Override
+    public Map<String, String> review(EditorialReviewRequest request) {
+      return Map.of();
+    }
+
+    @Override
+    public String reviewSignature() {
+      return signature;
     }
   }
 }

@@ -8,9 +8,12 @@ import java.util.Map;
  * execution, driven entirely by {@code RenderingPlan.sectionContexts()} (title, objective,
  * narrative intent, presentation mode, highlights, traceability and writing instructions).
  * Returns a map of sectionId to rendered Markdown; untouched sections are preserved by the
- * caller from the previous document version. Temporal-Activity-ready: plain request/response.
+ * caller from the previous document version. The render signature fingerprints the prompt and
+ * model, so changing either of them invalidates the sections rendered before.
  */
 public interface TemplateRenderAgent {
 
   Map<String, String> render(TemplateRenderRequest request);
+
+  String renderSignature();
 }

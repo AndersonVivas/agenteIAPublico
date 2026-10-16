@@ -2,103 +2,75 @@ package com.pichincha.cdemsaspopenaidocumentation.helper;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.pichincha.cdemsaspopenaidocumentation.config.GitCloneProperties;
-import com.pichincha.cdemsaspopenaidocumentation.domain.CommandExecutionResult;
-import com.pichincha.cdemsaspopenaidocumentation.domain.RepositoryCloneRequest;
 import com.pichincha.cdemsaspopenaidocumentation.domain.RepositoryCloneResult;
-import com.pichincha.cdemsaspopenaidocumentation.exception.RepositoryCloneException;
+import com.pichincha.cdemsaspopenaidocumentation.domain.RepositoryCoordinates;
+import com.pichincha.cdemsaspopenaidocumentation.domain.ScanCommand;
+import com.pichincha.cdemsaspopenaidocumentation.support.GitTestRepository;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class GitRepositoryClonerTest {
 
-  @Test
-  void shouldUseUpdatedDefaultCloneDirectory() {
-    GitCloneProperties properties = new GitCloneProperties("https://dev.azure.com",
-      "avivaspa", "test-pat", null, false, null);
+  private static final RepositoryCoordinates REPOSITORY =
+      new RepositoryCoordinates("org", "project", "repo");
 
-    assertEquals(Path.of(System.getProperty("user.home"), "Documents",
-      "iniciativaIADocumentación", "repositoriosAnalizados"),
-      properties.cloneDirectory());
+  @TempDir
+  private Path temp;
+
+  private GitTestRepository remote;
+  private GitRepositoryCloner cloner;
+
+  @BeforeEach
+  void setUp() throws IOException {
+    remote = GitTestRepository.init(temp.resolve("remotes/org/project/repo"));
+    remote.write("README.md", "base").commit("base");
+    GitCloneProperties properties = new GitCloneProperties(
+        temp.resolve("remotes").toUri().toString(), null, null, temp.resolve("clones"),
+        Duration.ofMinutes(1));
+    cloner = new GitRepositoryCloner(properties, new DefaultGitCommandExecutor(),
+        new WorkspaceDirectoryHelper(properties));
   }
 
   @Test
-  void cloneRepositoryShouldBuildGitCloneCommand() throws Exception {
-    Path cloneDirectory = Files.createTempDirectory("git-clone-test");
-    CapturingGitCommandExecutor executor = new CapturingGitCommandExecutor();
-    GitCloneProperties properties = new GitCloneProperties("https://dev.azure.com",
-      "avivaspa", "test-pat", cloneDirectory, false, Duration.ofSeconds(10));
-    GitRepositoryCloner cloner = new GitRepositoryCloner(properties, executor);
+  void cloneRepositoryShouldCheckoutPullRequestMergeRefWhenAvailable() throws IOException {
+    remote.write("Feature.java", "class Feature {}");
+    String pullRequestCommit = remote.commit("feature");
+    remote.createPullRequestRef(7L);
 
-    RepositoryCloneResult result = cloner.cloneRepository(
-      new RepositoryCloneRequest("BancoPichinchaEC", "taa-serviciosadministrativos",
-        "sad-mna-logistica-del-efectivo", 18L));
+    RepositoryCloneResult result = cloner.cloneRepository(command(7L));
 
-    assertEquals(List.of("git", "clone",
-      "https://avivaspa:test-pat@dev.azure.com/BancoPichinchaEC/"
-        + "taa-serviciosadministrativos/_git/"
-        + "sad-mna-logistica-del-efectivo",
-      cloneDirectory.resolve("BancoPichinchaEC")
-        .resolve("taa-serviciosadministrativos")
-        .resolve("sad-mna-logistica-del-efectivo")
-        .toString()), executor.command);
-    assertEquals(cloneDirectory, executor.workingDirectory);
-    assertEquals("sad-mna-logistica-del-efectivo", result.repositoryName());
-    assertEquals(18L, result.pullRequestId());
-    assertEquals(cloneDirectory.resolve("BancoPichinchaEC")
-      .resolve("taa-serviciosadministrativos")
-      .resolve("sad-mna-logistica-del-efectivo")
-      .toString(), result.localPath());
-    assertTrue(Files.exists(cloneDirectory.resolve("BancoPichinchaEC")
-      .resolve("taa-serviciosadministrativos")));
-    assertFalse(Files.exists(Path.of(result.localPath())));
+    assertTrue(result.pullRequestResolved());
+    assertEquals("refs/pull/7/merge", result.checkedOutRef());
+    assertEquals(pullRequestCommit, result.headCommit());
+    assertTrue(Files.exists(result.localPath().resolve("Feature.java")));
   }
 
   @Test
-  void cloneRepositoryShouldFailWhenBaseUrlIsMissing() throws Exception {
-    Path cloneDirectory = Files.createTempDirectory("git-clone-test");
-    GitRepositoryCloner cloner = new GitRepositoryCloner(new GitCloneProperties("",
-      "avivaspa", "test-pat", cloneDirectory, false, Duration.ofSeconds(10)),
-      new CapturingGitCommandExecutor());
+  void cloneRepositoryShouldFallBackToDefaultBranchWhenPullRequestRefIsMissing() {
+    RepositoryCloneResult result = cloner.cloneRepository(command(99L));
 
-    assertThrows(RepositoryCloneException.class,
-      () -> cloner.cloneRepository(new RepositoryCloneRequest("BancoPichinchaEC",
-        "taa-serviciosadministrativos", "sad-mna-logistica-del-efectivo", 18L)));
+    assertFalse(result.pullRequestResolved());
+    assertEquals("main", result.checkedOutRef());
   }
 
   @Test
-  void cloneRepositoryShouldUseHttpsWhenCredentialsAreMissing() throws Exception {
-    Path cloneDirectory = Files.createTempDirectory("git-clone-test");
-    CapturingGitCommandExecutor executor = new CapturingGitCommandExecutor();
-    GitCloneProperties properties = new GitCloneProperties("dev.azure.com", "", "",
-      cloneDirectory, false, Duration.ofSeconds(10));
-    GitRepositoryCloner cloner = new GitRepositoryCloner(properties, executor);
+  void releaseShouldDeleteTheWorkspace() {
+    RepositoryCloneResult result = cloner.cloneRepository(command(null));
 
-    cloner.cloneRepository(new RepositoryCloneRequest("BancoPichinchaEC",
-      "taa-serviciosadministrativos", "sad-msa-dm-cchd-central-cash-handling", 21L));
+    cloner.release(result);
 
-    assertEquals("https://dev.azure.com/BancoPichinchaEC/taa-serviciosadministrativos"
-      + "/_git/sad-msa-dm-cchd-central-cash-handling", executor.command.get(2));
+    assertFalse(Files.exists(result.localPath()));
   }
 
-  static class CapturingGitCommandExecutor implements GitCommandExecutor {
-
-    private List<String> command = new ArrayList<>();
-    private Path workingDirectory;
-
-    @Override
-    public CommandExecutionResult execute(List<String> command, Path workingDirectory,
-      Duration timeout) {
-      this.command = List.copyOf(command);
-      this.workingDirectory = workingDirectory;
-      return new CommandExecutionResult(0, "ok");
-    }
+  private ScanCommand command(Long pullRequestId) {
+    return new ScanCommand("scan-1", REPOSITORY, pullRequestId, false);
   }
 }
